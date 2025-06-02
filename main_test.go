@@ -225,3 +225,56 @@ func TestNestedGroups(t *testing.T) {
 
 	assert.Equal("{\"Value\":\"return this back\"}", string(body))
 }
+
+func TestEtagCaching(t *testing.T) {
+	assert := assert.New(t)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	books := &f.BasicEndpoint[f.NoParams]{
+		Method: "GET",
+		Path:   "/books",
+		CachePolicy: &f.HttpCachePolicy{
+			MaxAge: time.Hour,
+		},
+		Handler: func(request *f.Request, params f.NoParams) *f.Response {
+			return f.Respond.Ok().JSON([]Book{
+				{
+					Title: "Murder in Orient Express",
+				},
+				{
+					Title: "It",
+				},
+				{
+					Title: "Harry Potter",
+				},
+			})
+		},
+	}
+
+	server.Add(books)
+
+	go server.Listen()
+	defer server.Close()
+
+	resp, err := http.Get("http://localhost:8080/books")
+	assert.NoError(err)
+	assert.Equal(200, resp.StatusCode)
+
+	etag := resp.Header.Get("ETag")
+	assert.NotZero(etag)
+
+	client := &http.Client{}
+	request, err := http.NewRequest("GET", "http://localhost:8080/books", nil)
+	assert.NoError(err)
+	request.Header.Set("If-None-Match", etag)
+	resp, err = client.Do(request)
+	assert.NoError(err)
+
+	assert.Equal(304, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal(0, len(body))
+}
