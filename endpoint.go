@@ -5,9 +5,12 @@ import (
 )
 
 type Endpoint[T any, B any] struct {
-	Method   string
-	Path     string
-	Auth     AuthHandler
+	Method string
+	Path   string
+	Auth   AuthHandler
+	// One of: `auto`, `none`, `gzip`, `brotli`, `deflate`
+	//
+	// Default: `auto`
 	Encoding string
 	// CachePolicy is used to determine the value of the Cache-Control header and the server behavior
 	// when receiving a request with a If-None-Match header.

@@ -20,7 +20,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 	basepath := parent.GetPath()
 	middlewares := parent.GetMiddlewares()
 	authHandlers := parent.GetAuthHandlers()
-	encoding := e.GetEncoding()
+	defaultEncoding := e.GetEncoding()
 	cachePolicy := e.GetCachePolicy()
 	fullpath := strings.TrimRight(basepath, "/") + "/" + strings.TrimLeft(e.GetPath(), "/")
 
@@ -32,7 +32,9 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 		authHandlers = append(authHandlers, endpAuth)
 	}
 
-	encoder := createEncoder(encoding)
+	if defaultEncoding == "" {
+		defaultEncoding = "auto"
+	}
 
 	handler := func(ctx echo.Context) error {
 		request := newRequest(ctx)
@@ -40,7 +42,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 		for _, authHandler := range authHandlers {
 			auth := authHandler(request)
 			if !auth.IsSuccessful() {
-				return auth.SendResponse(ctx)
+				return auth.SendResponse(request)
 			}
 		}
 
@@ -91,7 +93,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 		}
 
 		if response.customHandler != nil {
-			return response.send(ctx)
+			return response.send(request)
 		}
 
 		cp := resolveCachePolicy(cachePolicy, response)
@@ -114,9 +116,11 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 			}
 		}
 
-		encoder(request, response, ctx)
+		if response.Encoding == "" {
+			response.Encoding = defaultEncoding
+		}
 
-		return response.send(ctx)
+		return response.send(request)
 	}
 
 	switch e.GetMethod() {
@@ -157,28 +161,4 @@ func resolveCachePolicy(endpointPolicy *HttpCachePolicy, response *Response) *Ht
 		}
 	}
 	return nil
-}
-
-func createEncoder(encoding string) func(request *Request, response *Response, ctx echo.Context) {
-	if encoding == "gzip" {
-		return func(request *Request, response *Response, ctx echo.Context) {
-			// if the response already has encoding specified don't do anything
-			if response.Encoding != "" || response.Headers.Get("Content-Encoding") != "" {
-				return
-			}
-
-			acceptedEncodings := request.Headers.Get("Accept-Encoding")
-			if strings.Contains(acceptedEncodings, "gzip") {
-				data, err := GZip(response.Body)
-				if err == nil {
-					response.Body = data.Bytes()
-					response.Headers.Set("Content-Encoding", "gzip")
-				} else {
-					ctx.Logger().Error("encountered an error when encoding the response (GZip)")
-				}
-			}
-		}
-	}
-
-	return func(request *Request, response *Response, ctx echo.Context) {}
 }

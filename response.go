@@ -4,15 +4,17 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/labstack/echo/v4"
 )
 
 type Response struct {
-	Status        int
-	Headers       Headers
-	Body          []byte
+	Status  int
+	Headers Headers
+	Body    []byte
+	// One of: `auto`, `none`, `gzip`, `brotli`, `deflate`
+	//
+	// Default: `auto`
 	Encoding      string
 	CachePolicy   *HttpCachePolicy
 	customHandler func(ctx echo.Context) error
@@ -21,7 +23,7 @@ type Response struct {
 	logs          []string
 }
 
-// marks this response to be encoded with a given encoding (gzip)
+// marks this response to be encoded with a given encoding (one of: `auto`, `none`, `gzip`, `brotli`, `deflate`)
 //
 // encoding happens as the last step before sending a response,
 // middlewares run before the content gets encoded.
@@ -155,7 +157,9 @@ func (resp *Response) File(filepath string, contentType ...string) *Response {
 	return resp
 }
 
-func (resp *Response) send(ctx echo.Context) error {
+func (resp *Response) send(request *Request) error {
+	ctx := request.EchoContext()
+
 	if resp.customHandler != nil {
 		return resp.customHandler(ctx)
 	}
@@ -165,7 +169,12 @@ func (resp *Response) send(ctx echo.Context) error {
 		ctx.SetCookie(cookie)
 	}
 
-	resp.encodeBody(ctx)
+	encodeErr := resp.encodeBody(request)
+
+	if encodeErr != nil {
+		ctx.Logger().Error(encodeErr)
+	}
+
 	resp.Headers.CopyInto(ctx.Response().Header())
 
 	if len(resp.Body) > 0 {
@@ -175,19 +184,27 @@ func (resp *Response) send(ctx echo.Context) error {
 	}
 }
 
-func (resp *Response) encodeBody(ctx echo.Context) {
-	if len(resp.Body) > 0 && resp.Encoding == "gzip" && resp.Headers.Get("Content-Encoding") == "" {
-		acceptedEncodings := ctx.Request().Header.Get("Accept-Encoding")
-		if strings.Contains(acceptedEncodings, "gzip") {
-			data, err := GZip(resp.Body)
-			if err == nil {
-				resp.Body = data.Bytes()
-				resp.Headers.Set("Content-Encoding", "gzip")
-			} else {
-				ctx.Logger().Error("encountered an error when encoding the response (GZip)")
-			}
-		}
+func (resp *Response) encodeBody(request *Request) error {
+	enc := resp.Encoding
+
+	if enc == "auto" {
+		enc = resolveAutoEncoding(request, resp)
 	}
+
+	if enc == "none" {
+		return nil
+	}
+
+	switch enc {
+	case "brotli":
+		return EncodeRequestBrotli(request, resp)
+	case "deflate":
+		return EncodeRequestDeflate(request, resp)
+	case "gzip":
+		return EncodeRequestGzip(request, resp)
+	}
+
+	return nil
 }
 
 type resp struct{}

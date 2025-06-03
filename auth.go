@@ -1,7 +1,5 @@
 package httpbutler
 
-import "github.com/labstack/echo/v4"
-
 type auth struct {
 	success  bool
 	result   string
@@ -46,6 +44,6 @@ func (a *auth) IsSuccessful() bool {
 	return a.success
 }
 
-func (a *auth) SendResponse(ctx echo.Context) error {
+func (a *auth) SendResponse(ctx *Request) error {
 	return a.response.send(ctx)
 }

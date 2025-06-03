@@ -1,5 +1,7 @@
 package httpbutler
 
+import "strings"
+
 type genericHeaderCollection interface {
 	Get(name string) string
 	Set(name string, value string)
@@ -17,6 +19,8 @@ type Headers struct {
 }
 
 func (h *Headers) Get(name string) string {
+	name = strings.ToLower(name)
+
 	for idx := range h.httpHeaders {
 		h := &h.httpHeaders[idx]
 		if h.name == name {
@@ -28,6 +32,8 @@ func (h *Headers) Get(name string) string {
 }
 
 func (h *Headers) Set(name string, value string) {
+	name = strings.ToLower(name)
+
 	for idx := range h.httpHeaders {
 		h := &h.httpHeaders[idx]
 		if h.name == name {
@@ -40,6 +46,8 @@ func (h *Headers) Set(name string, value string) {
 }
 
 func (h *Headers) Add(name string, value string) {
+	name = strings.ToLower(name)
+
 	for idx := range h.httpHeaders {
 		h := &h.httpHeaders[idx]
 		if h.name == name {
@@ -52,6 +60,8 @@ func (h *Headers) Add(name string, value string) {
 }
 
 func (h *Headers) Del(name string) {
+	name = strings.ToLower(name)
+
 	for idx := range h.httpHeaders {
 		if h.httpHeaders[idx].name == name {
 			h.httpHeaders[idx] = h.httpHeaders[len(h.httpHeaders)-1]
