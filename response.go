@@ -294,7 +294,7 @@ func (resp *Response) send(request *Request) error {
 
 	if resp.streamReader != nil {
 		return resp.streamFromReader(ctx, request)
-	} else if len(resp.Body) > 0 {
+	} else if resp.Body != nil && len(resp.Body) > 0 {
 		if resp.shouldStream(request) {
 			return resp.stream(ctx, request)
 		} else {
@@ -329,7 +329,7 @@ func (resp *Response) encodeBody(request *Request) error {
 }
 
 func (resp *Response) shouldStream(request *Request) bool {
-	return resp.AllowStreaming && request.Headers.Get("Range") != "" && resp.Headers.Get("Content-Encoding") == ""
+	return resp.AllowStreaming && request.Headers.Get("Range") != ""
 }
 
 type resp struct{}
