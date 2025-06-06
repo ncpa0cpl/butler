@@ -26,7 +26,10 @@ func (p *StringQParam) Has() bool {
 	return p.isSet
 }
 
-func (p *StringQParam) Get() string {
+func (p *StringQParam) Get(defaultValue ...string) string {
+	if !p.isSet && len(defaultValue) > 0 {
+		return defaultValue[0]
+	}
 	return p.value
 }
 
@@ -54,7 +57,10 @@ func (p *NumberQParam) Has() bool {
 	return p.isSet
 }
 
-func (p *NumberQParam) Get() int64 {
+func (p *NumberQParam) Get(defaultValue ...int64) int64 {
+	if !p.isSet && len(defaultValue) > 0 {
+		return defaultValue[0]
+	}
 	return p.value
 }
 
@@ -87,7 +93,10 @@ func (p *BoolQParam) Has() bool {
 	return p.isSet
 }
 
-func (p *BoolQParam) Get() bool {
+func (p *BoolQParam) Get(defaultValue ...bool) bool {
+	if !p.isSet && len(defaultValue) > 0 {
+		return defaultValue[0]
+	}
 	return p.value
 }
 
