@@ -8,8 +8,6 @@ import (
 	echo "github.com/labstack/echo/v4"
 )
 
-const CHUNK_SIZE int = 1024
-
 type StreamingSettings struct {
 	ChunkSize        uint
 	KeepAliveTimeout uint
@@ -88,7 +86,6 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 	respH.Set("Content-Range", contentRange)
 	respH.Set("Content-Type", contentType)
 
-	// retBuff := resp.Body[requestedRange.Start : requestedRange.End+1]
 	done := reader.Skip(requestedRange.Start)
 	if done {
 		ctx.NoContent(400)
@@ -96,7 +93,6 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 	}
 
 	writer := ctx.Response().Writer
-	writer.WriteHeader(resp.Status)
 
 	maxChunkSize := int(settings.ChunkSize)
 
@@ -104,6 +100,12 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 		panic("incorrect chunk size")
 	}
 
+	flusher, ok := writer.(http.Flusher)
+	if !ok {
+		panic("unable to get the http.Flusher")
+	}
+
+	writer.WriteHeader(resp.Status)
 	if requestedLen > maxChunkSize {
 		sent := 0
 		for {
@@ -126,7 +128,7 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 			}
 
 			writer.Write(buff)
-			writer.(http.Flusher).Flush()
+			flusher.Flush()
 			sent += len(buff)
 
 			if done || sent >= requestedLen {
@@ -138,7 +140,7 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 		reader.Read(requestedLen, &buff)
 
 		writer.Write(buff)
-		writer.(http.Flusher).Flush()
+		flusher.Flush()
 	}
 
 	return nil

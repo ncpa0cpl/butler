@@ -32,25 +32,25 @@ func (s *TestServer) GET(path string, h echo.HandlerFunc, m ...echo.MiddlewareFu
 	return nil
 }
 func (s *TestServer) POST(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	s.postRoutes = append(s.getRoutes, TestRegisteredRoute{
+	s.postRoutes = append(s.postRoutes, TestRegisteredRoute{
 		path, h,
 	})
 	return nil
 }
 func (s *TestServer) PUT(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	s.putRoutes = append(s.getRoutes, TestRegisteredRoute{
+	s.putRoutes = append(s.putRoutes, TestRegisteredRoute{
 		path, h,
 	})
 	return nil
 }
 func (s *TestServer) PATCH(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	s.patchRoutes = append(s.getRoutes, TestRegisteredRoute{
+	s.patchRoutes = append(s.patchRoutes, TestRegisteredRoute{
 		path, h,
 	})
 	return nil
 }
 func (s *TestServer) DELETE(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	s.deleteRoutes = append(s.getRoutes, TestRegisteredRoute{
+	s.deleteRoutes = append(s.deleteRoutes, TestRegisteredRoute{
 		path, h,
 	})
 	return nil
@@ -62,7 +62,7 @@ func (s *TestServer) OPTIONS(path string, h echo.HandlerFunc, m ...echo.Middlewa
 	return nil
 }
 func (s *TestServer) HEAD(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	s.headRoutes = append(s.getRoutes, TestRegisteredRoute{
+	s.headRoutes = append(s.optionsRoutes, TestRegisteredRoute{
 		path, h,
 	})
 	return nil

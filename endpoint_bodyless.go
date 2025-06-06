@@ -44,6 +44,10 @@ func (e *BasicEndpoint[T]) GetStreamingSettings() *StreamingSettings {
 	return e.StreamingSettings
 }
 
+func (e *BasicEndpoint[T]) GetMiddlewares() []Middleware {
+	return []Middleware{}
+}
+
 func (e *BasicEndpoint[T]) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
 	defer func() {
 		if r := recover(); r != nil {

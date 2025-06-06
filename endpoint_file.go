@@ -51,6 +51,10 @@ func (e *FsEndpoint) GetStreamingSettings() *StreamingSettings {
 	return e.StreamingSettings
 }
 
+func (e *FsEndpoint) GetMiddlewares() []Middleware {
+	return []Middleware{}
+}
+
 func (e *FsEndpoint) Register(parent EndpointParent) []EndpointInterface {
 	if e.Handler == nil {
 		e.Handler = func(request *Request, file []byte, fstat os.FileInfo) *Response {

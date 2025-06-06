@@ -1,9 +1,5 @@
 package httpbutler
 
-import (
-	"strings"
-)
-
 type Group struct {
 	Path string
 	Auth AuthHandler
@@ -25,7 +21,7 @@ func (g *Group) GetMiddlewares() []Middleware {
 }
 
 func (g *Group) GetPath() string {
-	return strings.TrimRight(g.parent.GetPath(), "/") + "/" + strings.TrimLeft(g.Path, "/")
+	return pathJoin(g.parent.GetPath(), g.Path)
 }
 
 func (g *Group) GetAuthHandlers() []AuthHandler {

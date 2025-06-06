@@ -1,8 +1,6 @@
 package httpbutler
 
 import (
-	"strings"
-
 	echo "github.com/labstack/echo/v4"
 )
 
@@ -14,17 +12,18 @@ type AnyEndpoint interface {
 	ExecuteHandler(ctx echo.Context, request *Request) *Response
 	GetCachePolicy() *HttpCachePolicy
 	GetStreamingSettings() *StreamingSettings
+	GetMiddlewares() []Middleware
 }
 
 func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 	echoServer := parent.GetEcho()
 	basepath := parent.GetPath()
-	middlewares := parent.GetMiddlewares()
+	middlewares := append(parent.GetMiddlewares(), e.GetMiddlewares()...)
 	authHandlers := parent.GetAuthHandlers()
 	defaultEncoding := e.GetEncoding()
 	cachePolicy := e.GetCachePolicy()
 	streamSettings := e.GetStreamingSettings()
-	fullpath := strings.TrimRight(basepath, "/") + "/" + strings.TrimLeft(e.GetPath(), "/")
+	fullpath := pathJoin(basepath, e.GetPath())
 
 	reqMiddlewares := getReqMiddlewares(middlewares)
 	respMiddlewares := getRespMiddlewares(middlewares)
@@ -160,10 +159,8 @@ func resolveCachePolicy(endpointPolicy *HttpCachePolicy, response *Response) *Ht
 	if response.Headers.Get("Cache-Control") == "" {
 		if response.CachePolicy != nil {
 			return response.CachePolicy
-			// response.Headers.Set("Cache-Control", response.CachePolicy.ToString())
 		} else if endpointPolicy != nil {
 			return endpointPolicy
-			// response.Headers.Set("Cache-Control", endpointPolicy.ToString())
 		}
 	}
 	return nil

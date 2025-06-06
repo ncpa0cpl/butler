@@ -32,6 +32,7 @@ func (p *StringQParam) Get() string {
 
 func (p *StringQParam) Set(value string) *ParamParsingError {
 	p.value = value
+	p.isSet = true
 	return nil
 }
 
@@ -64,6 +65,7 @@ func (p *NumberQParam) Set(value string) *ParamParsingError {
 	}
 
 	p.value = num
+	p.isSet = true
 	return nil
 }
 
@@ -90,9 +92,8 @@ func (p *BoolQParam) Get() bool {
 }
 
 func (p *BoolQParam) Set(value string) *ParamParsingError {
-	if value == "1" || strings.ToLower(value) == "true" {
-		p.value = true
-	}
+	p.value = value == "1" || strings.ToLower(value) == "true"
+	p.isSet = true
 	return nil
 }
 
@@ -119,6 +120,7 @@ func (p *StringUrlParam) Get() string {
 
 func (p *StringUrlParam) Set(value string) *ParamParsingError {
 	p.value = value
+	p.isSet = true
 	return nil
 }
 
@@ -146,6 +148,7 @@ func (p *NumberUrlParam) Set(value string) *ParamParsingError {
 	}
 
 	p.value = num
+	p.isSet = true
 	return nil
 }
 
@@ -167,9 +170,8 @@ func (p *BoolUrlParam) Get() bool {
 }
 
 func (p *BoolUrlParam) Set(value string) *ParamParsingError {
-	if value == "1" || strings.ToLower(value) == "true" {
-		p.value = true
-	}
+	p.value = value == "1" || strings.ToLower(value) == "true"
+	p.isSet = true
 	return nil
 }
 

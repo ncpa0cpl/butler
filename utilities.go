@@ -226,3 +226,11 @@ func parseRangeHeader(headers genericHeaderCollection) (*Range, error) {
 
 	return r, nil
 }
+
+func pathJoin(a, b string) string {
+	if b == "" {
+		return a
+	}
+
+	return strings.TrimRight(a, "/") + "/" + strings.TrimLeft(b, "/")
+}

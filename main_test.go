@@ -444,3 +444,134 @@ func TestStreamEndpoint(t *testing.T) {
 		body,
 	)
 }
+
+func TestRestEndpointHandling(t *testing.T) {
+	assert := assert.New(t)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	restEndp := &f.RestEndpoints[BooksQueryParams, BookResource]{
+		Path:     "/books",
+		Encoding: "auto",
+		Resource: BookResource{},
+	}
+
+	server.Add(restEndp)
+
+	go server.Listen()
+	defer server.Close()
+
+	client := &http.Client{}
+
+	resp, err := http.Get("http://localhost:8080/books")
+	assert.NoError(err)
+	assert.Equal(200, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal("[]", string(body))
+
+	postBody, _ := json.Marshal(&BookResource{"1", "Harry Potter", 100})
+	resp, err = http.Post("http://localhost:8080/books", "application/json", bytes.NewBuffer(postBody))
+	assert.NoError(err)
+	assert.Equal(201, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal("{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100}", string(body))
+
+	resp, err = http.Get("http://localhost:8080/books")
+	assert.NoError(err)
+	assert.Equal(200, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal("[{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100}]", string(body))
+
+	postBody, _ = json.Marshal(&BookResource{"2", "It", 543})
+	resp, err = http.Post("http://localhost:8080/books", "application/json", bytes.NewBuffer(postBody))
+	assert.NoError(err)
+	assert.Equal(201, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal("{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}", string(body))
+
+	resp, err = http.Get("http://localhost:8080/books")
+	assert.NoError(err)
+	assert.Equal(200, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal("[{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100},{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}]", string(body))
+
+	resp, err = http.Get("http://localhost:8080/books?filter=Harry")
+	assert.NoError(err)
+	assert.Equal(200, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal("[{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100}]", string(body))
+
+	resp, err = http.Get("http://localhost:8080/books?filter=foobar")
+	assert.NoError(err)
+	assert.Equal(200, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal("[]", string(body))
+
+	resp, err = http.Get("http://localhost:8080/books/1")
+	assert.NoError(err)
+	assert.Equal(200, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal("{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100}", string(body))
+
+	resp, err = http.Get("http://localhost:8080/books/2")
+	assert.NoError(err)
+	assert.Equal(200, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal("{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}", string(body))
+
+	resp, err = http.Get("http://localhost:8080/books/3")
+	assert.NoError(err)
+	assert.Equal(404, resp.StatusCode)
+
+	postBody, _ = json.Marshal(&BookResource{"1", "Harry Potter", 1001})
+	req, err := http.NewRequest("PUT", "http://localhost:8080/books/1", bytes.NewBuffer(postBody))
+	assert.NoError(err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = client.Do(req)
+	assert.NoError(err)
+	assert.Equal(200, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal("{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":1001}", string(body))
+
+	resp, err = http.Get("http://localhost:8080/books")
+	assert.NoError(err)
+	assert.Equal(200, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal("[{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":1001},{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}]", string(body))
+
+	resp, err = http.Get("http://localhost:8080/books/1")
+	assert.NoError(err)
+	assert.Equal(200, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal("{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":1001}", string(body))
+
+	req, err = http.NewRequest("DELETE", "http://localhost:8080/books/1", bytes.NewBuffer([]byte{}))
+	assert.NoError(err)
+	resp, err = client.Do(req)
+	assert.NoError(err)
+	assert.Equal(200, resp.StatusCode)
+
+	resp, err = http.Get("http://localhost:8080/books")
+	assert.NoError(err)
+	assert.Equal(200, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal("[{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}]", string(body))
+
+	resp, err = http.Get("http://localhost:8080/books/1")
+	assert.NoError(err)
+	assert.Equal(404, resp.StatusCode)
+}
