@@ -13,6 +13,7 @@ type AnyEndpoint interface {
 	GetEncoding() string
 	ExecuteHandler(ctx echo.Context, request *Request) *Response
 	GetCachePolicy() *HttpCachePolicy
+	GetStreamingSettings() *StreamingSettings
 }
 
 func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
@@ -22,6 +23,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 	authHandlers := parent.GetAuthHandlers()
 	defaultEncoding := e.GetEncoding()
 	cachePolicy := e.GetCachePolicy()
+	streamSettings := e.GetStreamingSettings()
 	fullpath := strings.TrimRight(basepath, "/") + "/" + strings.TrimLeft(e.GetPath(), "/")
 
 	reqMiddlewares := getReqMiddlewares(middlewares)
@@ -94,6 +96,10 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 		if response.customHandler != nil {
 			return response.send(request)
+		}
+
+		if response.StreamingSettings == nil {
+			response.StreamingSettings = streamSettings
 		}
 
 		cp := resolveCachePolicy(cachePolicy, response)

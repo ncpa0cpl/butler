@@ -6,6 +6,8 @@ import (
 	"compress/gzip"
 	"fmt"
 	"hash/fnv"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/andybalholm/brotli"
@@ -157,6 +159,10 @@ func EncodeRequestBrotli(request *Request, resp *Response) error {
 }
 
 func AddEtag(response *Response) {
+	if len(response.Body) == 0 {
+		return
+	}
+
 	if response.etag != "" {
 		response.Headers.Set("ETag", response.etag)
 		return
@@ -169,4 +175,54 @@ func AddEtag(response *Response) {
 		etag := fmt.Sprintf("%x", hashValue)
 		response.Headers.Set("ETag", etag)
 	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
+}
+
+type Range struct {
+	HasStart bool
+	HasEnd   bool
+	Start    int
+	End      int
+}
+
+func parseRangeHeader(headers genericHeaderCollection) (*Range, error) {
+	header := headers.Get("Range")
+
+	if len(header) == 0 || !strings.HasPrefix(header, "bytes=") {
+		return nil, nil
+	}
+
+	header = strings.TrimPrefix(header, "bytes=")
+
+	rangeParts := strings.Split(header, "-")
+
+	r := &Range{}
+
+	if len(rangeParts) > 0 && rangeParts[0] != "" {
+		startValue, err := strconv.ParseUint(rangeParts[0], 10, 64)
+
+		if err == nil {
+			r.Start = int(startValue)
+			r.HasStart = true
+		} else {
+			return nil, err
+		}
+	}
+
+	if len(rangeParts) > 1 && rangeParts[1] != "" {
+		endValue, err := strconv.ParseUint(rangeParts[1], 10, 64)
+
+		if err == nil {
+			r.End = int(endValue)
+			r.HasEnd = true
+		} else {
+			return nil, err
+		}
+	}
+
+	return r, nil
 }

@@ -329,3 +329,118 @@ func TestAutoEncoding(t *testing.T) {
 
 	assert.Equal("[{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"}]", string(respData))
 }
+
+func TestStreamEndpoint(t *testing.T) {
+	assert := assert.New(t)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	stream := &f.BasicEndpoint[f.NoParams]{
+		Method: "GET",
+		Path:   "/stream",
+		CachePolicy: &f.HttpCachePolicy{
+			MaxAge: time.Hour,
+		},
+		StreamingSettings: &f.StreamingSettings{
+			ChunkSize: 64,
+		},
+		Handler: func(request *f.Request, params f.NoParams) *f.Response {
+			return f.Respond.Ok().StreamBytes("text/plain", TEST_FILE_DATA)
+		},
+	}
+
+	server.Add(stream)
+
+	go server.Listen()
+	defer server.Close()
+
+	client := &http.Client{}
+
+	// first 32 bytes (below chunk size)
+	request, err := http.NewRequest("GET", "http://localhost:8080/stream", nil)
+	assert.NoError(err)
+	request.Header.Set("Range", "bytes=0-31")
+	resp, err := client.Do(request)
+	assert.NoError(err)
+
+	assert.Equal(206, resp.StatusCode)
+	assert.Equal("bytes 0-31/185", resp.Header.Get("content-range"))
+	assert.Equal("32", resp.Header.Get("content-length"))
+
+	body, err := io.ReadAll(resp.Body)
+	assert.Equal(
+		[]byte{
+			76, 111, 114, 101, 109, 32, 105, 112, 115, 117, 109, 32, 100, 111, 108, 111,
+			114, 32, 115, 105, 116, 32, 97, 109, 101, 116, 44, 32, 99, 111, 110, 115,
+		},
+		body,
+	)
+
+	// slice of bytes from the middle (above chunk size)
+	request, err = http.NewRequest("GET", "http://localhost:8080/stream", nil)
+	assert.NoError(err)
+	request.Header.Set("Range", "bytes=32-182")
+	resp, err = client.Do(request)
+	assert.NoError(err)
+
+	assert.Equal(206, resp.StatusCode)
+	assert.Equal("bytes 32-182/185", resp.Header.Get("content-range"))
+	assert.Equal("151", resp.Header.Get("content-length"))
+
+	body, err = io.ReadAll(resp.Body)
+	assert.Equal(
+		TEST_FILE_DATA[32:183],
+		body,
+	)
+
+	// last 15 bytes (below chunk size)
+	request, err = http.NewRequest("GET", "http://localhost:8080/stream", nil)
+	assert.NoError(err)
+	request.Header.Set("Range", "bytes=170-184")
+	resp, err = client.Do(request)
+	assert.NoError(err)
+
+	assert.Equal(206, resp.StatusCode)
+	assert.Equal("bytes 170-184/185", resp.Header.Get("content-range"))
+	assert.Equal("15", resp.Header.Get("content-length"))
+
+	body, err = io.ReadAll(resp.Body)
+	assert.Equal(
+		TEST_FILE_DATA[170:],
+		body,
+	)
+
+	// last 89 bytes (above chunk size)
+	request, err = http.NewRequest("GET", "http://localhost:8080/stream", nil)
+	assert.NoError(err)
+	request.Header.Set("Range", "bytes=96-")
+	resp, err = client.Do(request)
+	assert.NoError(err)
+
+	assert.Equal(206, resp.StatusCode)
+	assert.Equal("bytes 96-184/185", resp.Header.Get("content-range"))
+	assert.Equal("89", resp.Header.Get("content-length"))
+
+	body, err = io.ReadAll(resp.Body)
+	assert.Equal(
+		TEST_FILE_DATA[96:],
+		body,
+	)
+
+	// whole thing (no Range header)
+	request, err = http.NewRequest("GET", "http://localhost:8080/stream", nil)
+	assert.NoError(err)
+	resp, err = client.Do(request)
+	assert.NoError(err)
+
+	assert.Equal(206, resp.StatusCode)
+	assert.Equal("bytes 0-184/185", resp.Header.Get("content-range"))
+	assert.Equal("185", resp.Header.Get("content-length"))
+
+	body, err = io.ReadAll(resp.Body)
+	assert.Equal(
+		TEST_FILE_DATA,
+		body,
+	)
+}

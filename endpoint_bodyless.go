@@ -10,8 +10,9 @@ type BasicEndpoint[T any] struct {
 	Encoding string
 	// CachePolicy is used to determine the value of the Cache-Control header and the server behavior
 	// when receiving a request with a If-None-Match header.
-	CachePolicy *HttpCachePolicy
-	Handler     func(request *Request, params T) *Response
+	CachePolicy       *HttpCachePolicy
+	StreamingSettings *StreamingSettings
+	Handler           func(request *Request, params T) *Response
 
 	Description string
 	Name        string
@@ -39,6 +40,10 @@ func (e *BasicEndpoint[T]) GetCachePolicy() *HttpCachePolicy {
 	return e.CachePolicy
 }
 
+func (e *BasicEndpoint[T]) GetStreamingSettings() *StreamingSettings {
+	return e.StreamingSettings
+}
+
 func (e *BasicEndpoint[T]) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -61,6 +66,10 @@ func (e *BasicEndpoint[T]) ExecuteHandler(ctx echo.Context, request *Request) (r
 }
 
 func (e *BasicEndpoint[T]) Register(parent EndpointParent) []EndpointInterface {
+	if e.Handler == nil {
+		panic("endpoint has no handler")
+	}
+
 	registerEndpoint(e, parent)
 	return []EndpointInterface{e}
 }

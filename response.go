@@ -2,11 +2,18 @@ package httpbutler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 
 	"github.com/labstack/echo/v4"
 )
+
+type responseLog struct {
+	ltype   string
+	message string
+	cause   error
+}
 
 type Response struct {
 	Status  int
@@ -15,12 +22,15 @@ type Response struct {
 	// One of: `auto`, `none`, `gzip`, `brotli`, `deflate`
 	//
 	// Default: `auto`
-	Encoding      string
-	CachePolicy   *HttpCachePolicy
-	customHandler func(ctx echo.Context) error
-	cookies       []http.Cookie
-	etag          string
-	logs          []string
+	Encoding          string
+	CachePolicy       *HttpCachePolicy
+	AllowStreaming    bool
+	StreamingSettings *StreamingSettings
+	customHandler     func(ctx echo.Context) error
+	cookies           []http.Cookie
+	etag              string
+	logs              []responseLog
+	streamReader      ButlerReader
 }
 
 // marks this response to be encoded with a given encoding (one of: `auto`, `none`, `gzip`, `brotli`, `deflate`)
@@ -34,12 +44,23 @@ type Response struct {
 // this encoding setting takes priority over the one defined in the Endpoint
 //
 // set to empty string to disable encoding
-func (resp *Response) Encode(encoding string) *Response {
+func (resp *Response) SetEncoding(encoding string) *Response {
 	resp.Encoding = encoding
 	return resp
 }
 
-// Sets the etag to include in the response, when set to non empty string, the default etag generation will be skipped.
+// Set if the responsebody can be streamed in chunks.
+//
+// A response will be automatically streamed if the request contains a Range header.
+// This setting applies to all types of response, except the explicit Respond.Stream()
+// which always sends the response as a stream.
+func (resp *Response) SetAllowStreaming(canStream bool) *Response {
+	resp.AllowStreaming = canStream
+	return resp
+}
+
+// Sets the etag to include in the response, when set to non empty string, the default
+// etag generation will be skipped.
 func (resp *Response) Etag(etag string) *Response {
 	resp.etag = etag
 	return resp
@@ -51,6 +72,7 @@ func (resp *Response) SetCachePolicy(policy *HttpCachePolicy) *Response {
 	return resp
 }
 
+// replaces all the headers of this response
 func (resp *Response) SetHeaders(headers Headers) *Response {
 	resp.Headers = headers
 	return resp
@@ -62,12 +84,13 @@ func (resp *Response) SetCookie(cookie *http.Cookie) *Response {
 	return resp
 }
 
+// serializes the given argument using JSON and assigns it to the response body, changes the response content-type
 func (resp *Response) JSON(data any) *Response {
 	bytes, err := json.Marshal(data)
 
 	if err != nil {
 		resp.Status = 500
-		resp.logs = append(resp.logs, "encountered an error when serializing to JSON")
+		resp.logs = append(resp.logs, responseLog{"error", "encountered an error when serializing to JSON", err})
 	} else {
 		resp.Body = bytes
 		resp.Headers.Set("Content-Type", "application/json; charset=utf-8")
@@ -76,6 +99,7 @@ func (resp *Response) JSON(data any) *Response {
 	return resp
 }
 
+// assigns given argument to the response body, changes the response content-type
 func (resp *Response) Text(data string) *Response {
 	byte := []byte(data)
 	resp.Body = byte
@@ -83,6 +107,7 @@ func (resp *Response) Text(data string) *Response {
 	return resp
 }
 
+// assigns given argument to the response body, changes the response content-type
 func (resp *Response) Html(data string) *Response {
 	byte := []byte(data)
 	resp.Body = byte
@@ -90,6 +115,7 @@ func (resp *Response) Html(data string) *Response {
 	return resp
 }
 
+// assigns given argument to the response body, changes the response content-type
 func (resp *Response) Css(data string) *Response {
 	byte := []byte(data)
 	resp.Body = byte
@@ -97,6 +123,7 @@ func (resp *Response) Css(data string) *Response {
 	return resp
 }
 
+// assigns given argument to the response body, changes the response content-type
 func (resp *Response) Script(data string) *Response {
 	byte := []byte(data)
 	resp.Body = byte
@@ -104,6 +131,7 @@ func (resp *Response) Script(data string) *Response {
 	return resp
 }
 
+// assigns given argument to the response body, changes the response content-type
 func (resp *Response) XML(data string) *Response {
 	byte := []byte(data)
 	resp.Body = byte
@@ -118,7 +146,7 @@ func (resp *Response) OctetStream(data []byte) *Response {
 	return resp
 }
 
-// send the given byte slice, automatically detect the data `Conent-Type`
+// send the given byte slice, automatically detect the data `Content-Type`
 func (resp *Response) Blob(data []byte) *Response {
 	resp.Body = data
 	contentType := http.DetectContentType(data)
@@ -143,7 +171,7 @@ func (resp *Response) File(filepath string, contentType ...string) *Response {
 
 	if err != nil {
 		resp.Status = 500
-		resp.logs = append(resp.logs, "unable to read the given file")
+		resp.logs = append(resp.logs, responseLog{"error", "unable to read the given file", err})
 	} else {
 		resp.Body = data
 
@@ -157,11 +185,98 @@ func (resp *Response) File(filepath string, contentType ...string) *Response {
 	return resp
 }
 
+// send the given file with the specified `contentType`, if `contentType` argument
+// is not specified it will be detected automatically
+func (resp *Response) FileHandle(filehandle *os.File, contentType ...string) *Response {
+	data, err := io.ReadAll(filehandle)
+
+	if err != nil {
+		resp.Status = 500
+		resp.logs = append(resp.logs, responseLog{"error", "unable to read the given file", err})
+	} else {
+		resp.Body = data
+
+		if len(contentType) > 0 {
+			resp.Headers.Set("Content-Type", contentType[len(contentType)-1])
+		} else {
+			resp.Headers.Set("Content-Type", http.DetectContentType(data))
+		}
+	}
+
+	return resp
+}
+
+// sends the data in the given reader in chunks, respects the requests Range header
+//
+// forces a 206 response code
+func (resp *Response) Stream(contentType string, reader ButlerReader) *Response {
+	resp.Body = nil
+
+	resp.Status = 206
+	resp.streamReader = reader
+	resp.Headers.Set("Content-Type", contentType)
+
+	return resp
+}
+
+// sends the given byte array in chunks, respects the requests Range header
+//
+// forces a 206 response code
+func (resp *Response) StreamBytes(contentType string, data []byte) *Response {
+	resp.Body = nil
+
+	resp.Status = 206
+	resp.streamReader = NewBytesReader(data)
+	resp.Headers.Set("Content-Type", contentType)
+
+	return resp
+}
+
+// sends the data in the given file in chunks, respects the requests Range header
+//
+// forces a 206 response code
+func (resp *Response) StreamFile(contentType string, filepath string) *Response {
+	resp.Body = nil
+
+	file, err := os.Open(filepath)
+	if err != nil {
+		resp.Status = 500
+		resp.logs = append(resp.logs, responseLog{"error", "failed to open file " + filepath, err})
+		return resp
+	}
+
+	return resp.StreamFileHandle(contentType, file)
+}
+
+// sends the data in the given file in chunks, respects the requests Range header
+//
+// forces a 206 response code
+func (resp *Response) StreamFileHandle(contentType string, filehandle *os.File) *Response {
+	resp.Body = nil
+
+	var err error
+	resp.streamReader, err = NewFileReader(filehandle)
+	if err != nil {
+		resp.Status = 500
+		resp.logs = append(resp.logs, responseLog{"error", "failed to create file reader " + filehandle.Name(), err})
+		return resp
+	}
+
+	resp.Status = 206
+	resp.Headers.Set("Content-Type", contentType)
+
+	return resp
+}
+
 func (resp *Response) send(request *Request) error {
 	ctx := request.EchoContext()
 
 	if resp.customHandler != nil {
 		return resp.customHandler(ctx)
+	}
+
+	if resp.AllowStreaming {
+		resp.Headers.Set("Accept-Ranges", "bytes")
 	}
 
 	for idx := range resp.cookies {
@@ -177,8 +292,14 @@ func (resp *Response) send(request *Request) error {
 
 	resp.Headers.CopyInto(ctx.Response().Header())
 
-	if len(resp.Body) > 0 {
-		return ctx.Blob(resp.Status, resp.Headers.Get("Content-Type"), resp.Body)
+	if resp.streamReader != nil {
+		return resp.streamFromReader(ctx, request)
+	} else if len(resp.Body) > 0 {
+		if resp.shouldStream(request) {
+			return resp.stream(ctx, request)
+		} else {
+			return ctx.Blob(resp.Status, resp.Headers.Get("Content-Type"), resp.Body)
+		}
 	} else {
 		return ctx.NoContent(resp.Status)
 	}
@@ -207,25 +328,22 @@ func (resp *Response) encodeBody(request *Request) error {
 	return nil
 }
 
+func (resp *Response) shouldStream(request *Request) bool {
+	return resp.AllowStreaming && request.Headers.Get("Range") != "" && resp.Headers.Get("Content-Encoding") == ""
+}
+
 type resp struct{}
 
 var Respond resp
 
 // Creates a Response with a custom handler, when a custom handler is used the Response body, status, headers, cookies
-// etc. will not be added to the response
+// etc. that are set in the butler.Response will not be added to the echo.Context. You have to add those directly to the
+// echo.Context yourself.
 func (resp) Handler(customHandler func(ctx echo.Context) error) *Response {
 	return &Response{
 		customHandler: customHandler,
 	}
 }
-
-// func (resp) Stream(streamFn func()) *Response {
-// 	return &Response{
-// 		customHandler: func(ctx echo.Context) error {
-// 			return nil
-// 		},
-// 	}
-// }
 
 // HTTP Code: 200
 func (resp) Ok() *Response {
@@ -403,7 +521,7 @@ func (resp) Gone() *Response {
 }
 
 // HTTP Code: 411
-func (resp) Lengthrequired() *Response {
+func (resp) LengthRequired() *Response {
 	return &Response{
 		Status: 411,
 	}
@@ -487,7 +605,7 @@ func (resp) HeadersTooLarge() *Response {
 }
 
 // HTTP Code: 451
-func (resp) UnavilableForLegalReasons() *Response {
+func (resp) UnavailableForLegalReasons() *Response {
 	return &Response{
 		Status: 451,
 	}
@@ -550,7 +668,7 @@ func (resp) NotExtended() *Response {
 }
 
 // HTTP Code: 511
-func (resp) NetowrkAuthRequired() *Response {
+func (resp) NetworkAuthRequired() *Response {
 	return &Response{
 		Status: 511,
 	}
