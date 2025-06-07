@@ -79,7 +79,7 @@ func (e *FsEndpoint) Register(parent EndpointParent) []EndpointInterface {
 
 			var response *Response
 
-			if fmime == "text/javascript" || fmime == "text/html" ||
+			if e.DisableStreaming || fmime == "text/javascript" || fmime == "text/html" ||
 				fmime == "text/css" || fmime == "application/json" ||
 				fstat.Size() < Units.MB {
 				response = Respond.Ok().FileHandle(file, fmime)
