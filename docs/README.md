@@ -10,3 +10,4 @@
 8. [Rest Endpoints](./rest-endpoints.md)
 9. [Static Files](./static_files.md)
 10. [Caching](./caching.md)
+10. [Proxy](./proxy.md)
