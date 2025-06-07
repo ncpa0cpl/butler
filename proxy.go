@@ -67,22 +67,19 @@ func createProxyHandler(response *Response, url string, opts *ProxyRequestOption
 		respHeaders := ctx.Response().Header()
 		respWriter := ctx.Response().Writer
 
-		response.Headers.CopyInto(respHeaders)
-
 		req.AddValidator(func(res *http.Response) error {
 			for k, v := range res.Header {
-				if !response.Headers.Has(k) {
-					respHeaders[k] = v
-				}
+				respHeaders[k] = v
 			}
+			response.Headers.CopyInto(respHeaders)
 
 			return nil
 		})
-		req.ToWriter(respWriter)
 		req.AddValidator(func(res *http.Response) error {
 			respWriter.WriteHeader(res.StatusCode)
 			return nil
 		})
+		req.ToWriter(respWriter)
 
 		return req.Fetch(context.Background())
 	}
