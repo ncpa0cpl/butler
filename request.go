@@ -14,7 +14,7 @@ type Request struct {
 	Data    map[string]any
 }
 
-func newRequest(ctx echo.Context) *Request {
+func NewRequest(ctx echo.Context) *Request {
 	req := &Request{
 		ctx:     ctx,
 		Data:    map[string]any{},

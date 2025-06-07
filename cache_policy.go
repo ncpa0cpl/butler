@@ -8,7 +8,7 @@ import (
 type HttpCachePolicy struct {
 	// If it's detected that the response ETag matches the ETag in request If-None-Match header, it will only send
 	// a 304 (NotModified) response without content. This behavior can be disabled by setting this option to true.
-	DisableAutoResponse bool
+	DisableAutoResponseSkipping bool
 	// ETags area automatically generated for all responses with non-nil HttpCachePolicy. This behavior can be disabled
 	// by setting this option to true.
 	DisableETagGeneration bool

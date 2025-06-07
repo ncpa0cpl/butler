@@ -38,7 +38,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 	}
 
 	handler := func(ctx echo.Context) error {
-		request := newRequest(ctx)
+		request := NewRequest(ctx)
 
 		for _, authHandler := range authHandlers {
 			auth := authHandler(request)
@@ -101,21 +101,23 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 			response.StreamingSettings = streamSettings
 		}
 
-		cp := resolveCachePolicy(cachePolicy, response)
-		if cp != nil {
-			response.Headers.Set("Cache-Control", cp.ToString())
+		if response.Status < 300 {
+			cp := resolveCachePolicy(cachePolicy, response)
+			if cp != nil {
+				response.Headers.Set("Cache-Control", cp.ToString())
 
-			if !cp.DisableETagGeneration {
-				AddEtag(response)
-			}
+				if !cp.DisableETagGeneration {
+					AddEtag(response)
+				}
 
-			if !cp.DisableAutoResponse {
-				etag := response.Headers.Get("ETag")
-				if etag != "" {
-					ifNoneMatch := request.Headers.Get("If-None-Match")
-					if etag == ifNoneMatch {
-						response.Headers.CopyInto(ctx.Response().Header())
-						return ctx.NoContent(304)
+				if !cp.DisableAutoResponseSkipping {
+					etag := response.Headers.Get("ETag")
+					if etag != "" {
+						ifNoneMatch := request.Headers.Get("If-None-Match")
+						if etag == ifNoneMatch {
+							response.Headers.CopyInto(ctx.Response().Header())
+							return ctx.NoContent(304)
+						}
 					}
 				}
 			}

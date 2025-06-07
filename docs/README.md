@@ -6,3 +6,7 @@
 4. [Middlewares](./middleware.md)
 5. [Gropups](./groups.md)
 6. [Resoponses](./response.md)
+7. [Auth](./auth_handlers.md)
+8. [Rest Endpoints](./rest-endpoints.md)
+9. [Static Files](./static_files.md)
+10. [Caching](./caching.md)

@@ -25,6 +25,8 @@ type FsEndpoint struct {
 
 	Description string
 	Name        string
+
+	middlewares []Middleware
 }
 
 func (e *FsEndpoint) GetPath() string {
@@ -52,7 +54,11 @@ func (e *FsEndpoint) GetStreamingSettings() *StreamingSettings {
 }
 
 func (e *FsEndpoint) GetMiddlewares() []Middleware {
-	return []Middleware{}
+	return e.middlewares
+}
+
+func (e *FsEndpoint) Use(middleware Middleware) {
+	e.middlewares = append(e.middlewares, middleware)
 }
 
 func (e *FsEndpoint) Register(parent EndpointParent) []EndpointInterface {
