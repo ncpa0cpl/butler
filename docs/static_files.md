@@ -39,10 +39,13 @@ func main() {
 	staticFiles := &butler.FsEndpoint{
 		Path: "/static",
 		Dir: "/local/directory/path",
-		Handler: func(request *butler.Request, file []byte, fstat os.FileInfo) *butler.Response {
+		Handler: func(request *butler.Request, filepath string, file *os.File, fstat os.FileInfo) *butler.Response {
 			modTime := fstat.ModTime()
 
-			response := Respond.Ok().Blob(file)
+			data, _ := io.ReadAll(file)
+			file.Close()
+
+			response := Respond.Ok().Blob(data)
 			response.Headers.Set("Last-Modified", modTime.Format(http.TimeFormat))
 
 			return response
@@ -53,3 +56,6 @@ func main() {
 	app.Listen()
 }
 ```
+
+*Note:*
+Handler function should close the file handle. (response helpers for files do file closing automatically)

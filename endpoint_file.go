@@ -21,7 +21,12 @@ type FsEndpoint struct {
 	StreamingSettings *StreamingSettings
 	DisableStreaming  bool
 	// Optional handler function
-	Handler func(request *Request, file []byte, fstat os.FileInfo) *Response
+	Handler func(
+		request *Request,
+		fullFilepath string,
+		file *os.File,
+		fstat os.FileInfo,
+	) *Response
 
 	Description string
 	Name        string
@@ -63,12 +68,26 @@ func (e *FsEndpoint) Use(middleware Middleware) {
 
 func (e *FsEndpoint) Register(parent EndpointParent) []EndpointInterface {
 	if e.Handler == nil {
-		e.Handler = func(request *Request, file []byte, fstat os.FileInfo) *Response {
+		e.Handler = func(
+			request *Request,
+			fpath string,
+			file *os.File,
+			fstat os.FileInfo,
+		) *Response {
+			fmime := Mime.DetectFile(fpath, file)
 			modTime := fstat.ModTime()
 
-			response := Respond.Ok().Blob(file)
-			response.Headers.Set("Last-Modified", modTime.Format(http.TimeFormat))
+			var response *Response
 
+			if fmime == "text/javascript" || fmime == "text/html" ||
+				fmime == "text/css" || fmime == "application/json" ||
+				fstat.Size() < Units.MB {
+				response = Respond.Ok().FileHandle(file, fmime)
+			} else {
+				response = Respond.Ok().StreamFileHandle(file, fmime)
+			}
+
+			response.Headers.Set("Last-Modified", modTime.Format(http.TimeFormat))
 			return response
 		}
 	}
@@ -92,7 +111,6 @@ func (e *FsEndpoint) ExecuteHandler(ctx echo.Context, request *Request) (retVal 
 	}
 
 	file, err := os.Open(fullFilepath)
-	defer file.Close()
 	if err != nil {
 		ctx.Logger().Error("failed to open file: ", fullFilepath)
 		return Respond.InternalError()
@@ -108,14 +126,7 @@ func (e *FsEndpoint) ExecuteHandler(ctx echo.Context, request *Request) (retVal 
 		return Respond.NotFound()
 	}
 
-	fcontent := make([]byte, 0, stat.Size())
-	_, err = file.Read(fcontent)
-	if err != nil {
-		ctx.Logger().Error("failed to read file: ", fullFilepath)
-		return Respond.InternalError()
-	}
-
-	resp := e.Handler(request, fcontent, stat)
+	resp := e.Handler(request, fullFilepath, file, stat)
 
 	if e.DisableStreaming {
 		resp.SetAllowStreaming(false)

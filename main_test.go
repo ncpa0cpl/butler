@@ -2,10 +2,13 @@ package httpbutler_test
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -51,7 +54,7 @@ func TestGetEndpointWithQueryParams(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get("http://localhost:8080/books")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 
 	cp := resp.Header.Get("Content-Type")
@@ -64,24 +67,24 @@ func TestGetEndpointWithQueryParams(t *testing.T) {
 	assert.NotZero(etag)
 
 	body, err := io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 
 	assert.Equal("[{\"Title\":\"\"},{\"Title\":\"0\"},{\"Title\":\"false\"}]", string(body))
 
 	resp, err = http.Get("http://localhost:8080/books?search=fooqux&limit=2&includedel=true")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 
 	cp = resp.Header.Get("Content-Type")
 	assert.Equal("application/json; charset=utf-8", cp)
 
 	body, err = io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 
 	assert.Equal("[{\"Title\":\"fooqux\"},{\"Title\":\"2\"},{\"Title\":\"true\"}]", string(body))
 
 	resp, err = http.Get("http://localhost:8080/books?search=fooqux&limit=a&includedel=true")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(400, resp.StatusCode)
 }
 
@@ -123,19 +126,19 @@ func TestGetEndpointWithUrlParams(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get("http://localhost:8080/books/B1Y332O/5")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 
 	cp := resp.Header.Get("Content-Type")
 	assert.Equal("application/json; charset=utf-8", cp)
 
 	body, err := io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 
 	assert.Equal("[{\"Title\":\"B1Y332O\"},{\"Title\":\"5\"}]", string(body))
 
 	resp, err = http.Get("http://localhost:8080/books/B1Y332O/A")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(400, resp.StatusCode)
 }
 
@@ -169,11 +172,11 @@ func TestGroupedEndpoints(t *testing.T) {
 
 	postBody, _ := json.Marshal(&LoopbackPayload{Value: "return this back"})
 	resp, err := http.Post("http://localhost:8080/api/loopback", "application/json", bytes.NewBuffer(postBody))
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 
 	assert.Equal("{\"Value\":\"return this back\"}", string(body))
 }
@@ -218,11 +221,11 @@ func TestNestedGroups(t *testing.T) {
 
 	postBody, _ := json.Marshal(&LoopbackPayload{Value: "return this back"})
 	resp, err := http.Post("http://localhost:8080/group3/group2/group1/loopback", "application/json", bytes.NewBuffer(postBody))
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 
 	assert.Equal("{\"Value\":\"return this back\"}", string(body))
 }
@@ -260,7 +263,7 @@ func TestEtagCaching(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get("http://localhost:8080/books")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 
 	etag := resp.Header.Get("ETag")
@@ -268,15 +271,15 @@ func TestEtagCaching(t *testing.T) {
 
 	client := &http.Client{}
 	request, err := http.NewRequest("GET", "http://localhost:8080/books", nil)
-	assert.NoError(err)
+	noErr(err)
 	request.Header.Set("If-None-Match", etag)
 	resp, err = client.Do(request)
-	assert.NoError(err)
+	noErr(err)
 
 	assert.Equal(304, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(0, len(body))
 }
 
@@ -312,22 +315,152 @@ func TestAutoEncoding(t *testing.T) {
 	client := &http.Client{}
 	request, err := http.NewRequest("GET", "http://localhost:8080/books", nil)
 	request.Header.Add("Accept-Encoding", "br")
-	assert.NoError(err)
+	noErr(err)
 	resp, err := client.Do(request)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 
 	assert.Equal("br", resp.Header.Get("Content-Encoding"))
 
 	body, err := io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(40, len(body))
 
 	reader := brotli.NewReader(bytes.NewReader(body))
 	respData, err := io.ReadAll(reader)
-	assert.NoError(err)
+	noErr(err)
 
 	assert.Equal("[{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"},{\"Title\":\"Some Book\"}]", string(respData))
+}
+
+func TestFsEndpoint(t *testing.T) {
+	assert := assert.New(t)
+
+	// prepare a dir to serve from
+
+	os.RemoveAll("./static_test")
+
+	err := os.Mkdir("./static_test", 0755)
+	noErr(err)
+	defer func() {
+		err := os.RemoveAll("./static_test")
+		noErr(err)
+	}()
+
+	err = os.WriteFile("./static_test/script.js", []byte(JS_SAMPLE), 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/styles.css", []byte(CSS_SAMPLE), 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/index.html", []byte(HTML_SAMPLE), 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/data.json", []byte(JSON_SAMPLE), 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/small_vid.mp4", addVidPrefix(fill(make([]byte, f.Units.MB/4), 1)), 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/big_vid.mp4", addVidPrefix(fill(make([]byte, 5*f.Units.MB), 1)), 0644)
+	noErr(err)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	wd, err := os.Getwd()
+	noErr(err)
+	stream := &f.FsEndpoint{
+		Path: "/static",
+		Dir:  path.Join(wd, "static_test"),
+	}
+
+	server.Add(stream)
+
+	go server.Listen()
+	defer server.Close()
+
+	client := &http.Client{}
+
+	request, err := http.NewRequest("GET", "http://localhost:8080/static/script.js", nil)
+	request.Header.Set("accept-encoding", "gzip")
+	noErr(err)
+	resp, err := client.Do(request)
+	noErr(err)
+
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal("text/javascript", resp.Header.Get("content-type"))
+	assert.Equal("", resp.Header.Get("content-range"))
+
+	body, err := io.ReadAll(resp.Body)
+	assert.Equal([]byte(JS_SAMPLE), decodeGzip(body))
+
+	request, err = http.NewRequest("GET", "http://localhost:8080/static/styles.css", nil)
+	request.Header.Set("accept-encoding", "gzip")
+	noErr(err)
+	resp, err = client.Do(request)
+	noErr(err)
+
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal("text/css", resp.Header.Get("content-type"))
+	assert.Equal("", resp.Header.Get("content-range"))
+
+	body, err = io.ReadAll(resp.Body)
+	assert.Equal([]byte(CSS_SAMPLE), decodeGzip(body))
+
+	request, err = http.NewRequest("GET", "http://localhost:8080/static/index.html", nil)
+	request.Header.Set("accept-encoding", "gzip")
+	noErr(err)
+	resp, err = client.Do(request)
+	noErr(err)
+
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal("text/html", resp.Header.Get("content-type"))
+	assert.Equal("", resp.Header.Get("content-range"))
+
+	body, err = io.ReadAll(resp.Body)
+	assert.Equal([]byte(HTML_SAMPLE), decodeGzip(body))
+
+	request, err = http.NewRequest("GET", "http://localhost:8080/static/data.json", nil)
+	request.Header.Set("accept-encoding", "gzip")
+	noErr(err)
+	resp, err = client.Do(request)
+	noErr(err)
+
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal("application/json", resp.Header.Get("content-type"))
+	assert.Equal("", resp.Header.Get("content-range"))
+
+	body, err = io.ReadAll(resp.Body)
+	assert.Equal([]byte(JSON_SAMPLE), decodeGzip(body))
+
+	request, err = http.NewRequest("GET", "http://localhost:8080/static/small_vid.mp4", nil)
+	request.Header.Set("accept-encoding", "gzip")
+	noErr(err)
+	resp, err = client.Do(request)
+	noErr(err)
+
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("", resp.Header.Get("content-encoding"))
+	assert.Equal("video/mp4", resp.Header.Get("content-type"))
+	assert.Equal("", resp.Header.Get("content-range"))
+
+	body, err = io.ReadAll(resp.Body)
+	assert.Equal(262208, len(body))
+
+	request, err = http.NewRequest("GET", "http://localhost:8080/static/big_vid.mp4", nil)
+	request.Header.Set("accept-encoding", "gzip")
+	noErr(err)
+	resp, err = client.Do(request)
+	noErr(err)
+
+	assert.Equal(206, resp.StatusCode)
+	assert.Equal("", resp.Header.Get("content-encoding"))
+	assert.Equal("video/mp4", resp.Header.Get("content-type"))
+	assert.Equal("bytes 0-5242943/5242944", resp.Header.Get("content-range"))
+	assert.Equal("5242944", resp.Header.Get("content-length"))
+
+	body, err = io.ReadAll(resp.Body)
+	assert.Equal(5242944, len(body))
 }
 
 func TestStreamEndpoint(t *testing.T) {
@@ -346,7 +479,7 @@ func TestStreamEndpoint(t *testing.T) {
 			ChunkSize: 64,
 		},
 		Handler: func(request *f.Request, params f.NoParams) *f.Response {
-			return f.Respond.Ok().StreamBytes("text/plain", TEST_FILE_DATA)
+			return f.Respond.Ok().StreamBytes(TEST_FILE_DATA, "text/plain")
 		},
 	}
 
@@ -359,10 +492,10 @@ func TestStreamEndpoint(t *testing.T) {
 
 	// first 32 bytes (below chunk size)
 	request, err := http.NewRequest("GET", "http://localhost:8080/stream", nil)
-	assert.NoError(err)
+	noErr(err)
 	request.Header.Set("Range", "bytes=0-31")
 	resp, err := client.Do(request)
-	assert.NoError(err)
+	noErr(err)
 
 	assert.Equal(206, resp.StatusCode)
 	assert.Equal("bytes 0-31/185", resp.Header.Get("content-range"))
@@ -379,10 +512,10 @@ func TestStreamEndpoint(t *testing.T) {
 
 	// slice of bytes from the middle (above chunk size)
 	request, err = http.NewRequest("GET", "http://localhost:8080/stream", nil)
-	assert.NoError(err)
+	noErr(err)
 	request.Header.Set("Range", "bytes=32-182")
 	resp, err = client.Do(request)
-	assert.NoError(err)
+	noErr(err)
 
 	assert.Equal(206, resp.StatusCode)
 	assert.Equal("bytes 32-182/185", resp.Header.Get("content-range"))
@@ -396,10 +529,10 @@ func TestStreamEndpoint(t *testing.T) {
 
 	// last 15 bytes (below chunk size)
 	request, err = http.NewRequest("GET", "http://localhost:8080/stream", nil)
-	assert.NoError(err)
+	noErr(err)
 	request.Header.Set("Range", "bytes=170-184")
 	resp, err = client.Do(request)
-	assert.NoError(err)
+	noErr(err)
 
 	assert.Equal(206, resp.StatusCode)
 	assert.Equal("bytes 170-184/185", resp.Header.Get("content-range"))
@@ -413,10 +546,10 @@ func TestStreamEndpoint(t *testing.T) {
 
 	// last 89 bytes (above chunk size)
 	request, err = http.NewRequest("GET", "http://localhost:8080/stream", nil)
-	assert.NoError(err)
+	noErr(err)
 	request.Header.Set("Range", "bytes=96-")
 	resp, err = client.Do(request)
-	assert.NoError(err)
+	noErr(err)
 
 	assert.Equal(206, resp.StatusCode)
 	assert.Equal("bytes 96-184/185", resp.Header.Get("content-range"))
@@ -430,9 +563,9 @@ func TestStreamEndpoint(t *testing.T) {
 
 	// whole thing (no Range header)
 	request, err = http.NewRequest("GET", "http://localhost:8080/stream", nil)
-	assert.NoError(err)
+	noErr(err)
 	resp, err = client.Do(request)
-	assert.NoError(err)
+	noErr(err)
 
 	assert.Equal(206, resp.StatusCode)
 	assert.Equal("bytes 0-184/185", resp.Header.Get("content-range"))
@@ -465,114 +598,114 @@ func TestRestEndpointHandling(t *testing.T) {
 	client := &http.Client{}
 
 	resp, err := http.Get("http://localhost:8080/books")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal("[]", string(body))
 
 	postBody, _ := json.Marshal(&BookResource{"1", "Harry Potter", 100})
 	resp, err = http.Post("http://localhost:8080/books", "application/json", bytes.NewBuffer(postBody))
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(201, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal("{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100}", string(body))
 
 	resp, err = http.Get("http://localhost:8080/books")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal("[{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100}]", string(body))
 
 	postBody, _ = json.Marshal(&BookResource{"2", "It", 543})
 	resp, err = http.Post("http://localhost:8080/books", "application/json", bytes.NewBuffer(postBody))
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(201, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal("{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}", string(body))
 
 	resp, err = http.Get("http://localhost:8080/books")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal("[{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100},{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}]", string(body))
 
 	resp, err = http.Get("http://localhost:8080/books?filter=Harry")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal("[{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100}]", string(body))
 
 	resp, err = http.Get("http://localhost:8080/books?filter=foobar")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal("[]", string(body))
 
 	resp, err = http.Get("http://localhost:8080/books/1")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal("{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100}", string(body))
 
 	resp, err = http.Get("http://localhost:8080/books/2")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal("{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}", string(body))
 
 	resp, err = http.Get("http://localhost:8080/books/3")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(404, resp.StatusCode)
 
 	postBody, _ = json.Marshal(&BookResource{"1", "Harry Potter", 1001})
 	req, err := http.NewRequest("PUT", "http://localhost:8080/books/1", bytes.NewBuffer(postBody))
-	assert.NoError(err)
+	noErr(err)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err = client.Do(req)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal("{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":1001}", string(body))
 
 	resp, err = http.Get("http://localhost:8080/books")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal("[{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":1001},{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}]", string(body))
 
 	resp, err = http.Get("http://localhost:8080/books/1")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal("{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":1001}", string(body))
 
 	req, err = http.NewRequest("DELETE", "http://localhost:8080/books/1", bytes.NewBuffer([]byte{}))
-	assert.NoError(err)
+	noErr(err)
 	resp, err = client.Do(req)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 
 	resp, err = http.Get("http://localhost:8080/books")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal("[{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}]", string(body))
 
 	resp, err = http.Get("http://localhost:8080/books/1")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(404, resp.StatusCode)
 }
 
@@ -608,19 +741,19 @@ func TestProxyResponse(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get("http://localhost:8080/shouldfail")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(404, resp.StatusCode)
 
 	resp, err = http.Get("http://localhost:8080/proxytoswapi")
-	assert.NoError(err)
+	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
-	assert.NoError(err)
+	noErr(err)
 
 	var responseContent []Film
 	err = json.Unmarshal(body, &responseContent)
-	assert.NoError(err)
+	noErr(err)
 
 	// check if the butler server defined headers are present
 	assert.Equal("butler", resp.Header.Get("X-Custom-Header"))
@@ -1259,3 +1392,189 @@ type Film struct {
 	Edited       time.Time `json:"edited"`
 	URL          string    `json:"url"`
 }
+
+func fill[T any](slice []T, val T) []T {
+	for idx := range slice {
+		slice[idx] = val
+	}
+	return slice
+}
+
+func addVidPrefix(bytes []byte) []byte {
+	return append([]byte{
+		0, 0, 0, 32, 102, 116, 121, 112, 109, 112, 52, 50, 0, 0, 0, 0, 109, 112, 52, 50, 109, 112, 52, 49, 105, 115, 111, 109, 105, 115, 111, 50, 0, 0, 0, 8, 102, 114, 101, 101, 0, 5, 194, 101, 109, 100, 97, 116, 0, 0, 0, 15, 103, 66, 192, 31, 140, 104, 4, 16, 91, 234, 72, 7,
+	}, bytes...)
+}
+
+func decodeGzip(b []byte) []byte {
+	reader, err := gzip.NewReader(bytes.NewReader(b))
+	noErr(err)
+	decoded, err := io.ReadAll(reader)
+	noErr(err)
+	return decoded
+}
+
+func noErr(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+const JS_SAMPLE = `'use strict';/*
+ Copyright (c) 2016 The Polymer Project Authors. All rights reserved.
+ This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+ The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+ The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+ Code distributed by Google as part of the polymer project is also
+ subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+*/
+(()=>{if(window.customElements){var h=window.HTMLElement,m=window.customElements.define,n=window.customElements.get,k=new Map,l=new Map,e=!1,f=!1;window.HTMLElement=function(){if(!e){var a=k.get(this.constructor);a=n.call(window.customElements,a);f=!0;return new a}e=!1};window.HTMLElement.prototype=h.prototype;window.HTMLElement.es5Shimmed=!0;Object.defineProperty(window,"customElements",{value:window.customElements,configurable:!0,writable:!0});Object.defineProperty(window.customElements,"define",
+{value:(a,b)=>{const c=b.prototype,g=class extends h{constructor(){super();Object.setPrototypeOf(this,c);if(!f){e=!0;try{b.call(this)}catch(p){throw Error("Constructing ".concat(a,": ").concat(p));}}f=!1}},d=g.prototype;g.observedAttributes=b.observedAttributes;d.connectedCallback=c.connectedCallback;d.disconnectedCallback=c.disconnectedCallback;d.attributeChangedCallback=c.attributeChangedCallback;d.adoptedCallback=c.adoptedCallback;k.set(b,a);l.set(a,b);m.call(window.customElements,a,g)},configurable:!0,
+writable:!0});Object.defineProperty(window.customElements,"get",{value:a=>l.get(a),configurable:!0,writable:!0});if(navigator.userAgent.match(/Version\/(10\..*|11\.0\..*)Safari/)){const a=HTMLElement.prototype.constructor;Object.defineProperty(HTMLElement.prototype,"constructor",{configurable:!0,get(){return a},set(b){Object.defineProperty(this,"constructor",{value:b,configurable:!0,writable:!0})}})}}})();
+//# sourceMappingURL=blaze-out/k8-opt/bin/third_party/javascript/custom_elements/fast-shim.js.sourcemap`
+
+const CSS_SAMPLE = `/* cyrillic-ext */
+@font-face {
+  font-family: 'Noto Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/notosans/v39/o-0mIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjcz6L1SoM-jCpoiyD9A-9X6VLKzA.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Noto Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/notosans/v39/o-0mIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjcz6L1SoM-jCpoiyD9A-9e6VLKzA.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* devanagari */
+@font-face {
+  font-family: 'Noto Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/notosans/v39/o-0mIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjcz6L1SoM-jCpoiyD9A-9b6VLKzA.woff2) format('woff2');
+  unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Noto Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/notosans/v39/o-0mIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjcz6L1SoM-jCpoiyD9A-9W6VLKzA.woff2) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}`
+
+const HTML_SAMPLE = `<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <title>WebPi</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <!-- <script>
+            const define = window.customElements.define;
+            const defined = new Set();
+            window.customElements.define = (name, ...rest) => {
+                if (defined.has(name)) {
+                    return;
+                }
+                defined.add(name);
+                return define.call(window.customElements, name, ...rest);
+            };
+        </script> -->
+        <script type="module" src="/static/index.H1dq0v0.js"></script>
+        <!-- <link rel="preconnect" href="/static/"> -->
+        <link rel="stylesheet" href="/static/index.H8gs0sf.css" />
+    </head>
+    <body>
+        <div id="root"></div>
+        <script>
+            if (typeof window.HMR !== "undefined") {
+                const handler = (event) => {
+                    if (
+                        event.file.endsWith(".js") ||
+                        event.file.endsWith(".css")
+                    ) {
+                        window.location.reload();
+                    }
+                };
+                window.HMR.onChange(handler);
+                window.HMR.onCreate(handler);
+            }
+        </script>
+    </body>
+</html>
+`
+
+const JSON_SAMPLE = `[
+    {
+        "userID": 6,
+        "key": "movie-6",
+        "value": "WATCHED"
+    },
+    {
+        "userID": 6,
+        "key": "tvseries-15-ep-1",
+        "value": "WATCHED"
+    },
+    {
+        "userID": 6,
+        "key": "tvseries-21-ep-1",
+        "value": "WATCHED"
+    },
+    {
+        "userID": 6,
+        "key": "tvseries-21-ep-10",
+        "value": "WATCHED"
+    },
+    {
+        "userID": 6,
+        "key": "tvseries-21-ep-2",
+        "value": "WATCHED"
+    },
+    {
+        "userID": 6,
+        "key": "tvseries-21-ep-3",
+        "value": "WATCHED"
+    },
+    {
+        "userID": 6,
+        "key": "tvseries-21-ep-4",
+        "value": "WATCHED"
+    },
+    {
+        "userID": 6,
+        "key": "tvseries-21-ep-5",
+        "value": "WATCHED"
+    },
+    {
+        "userID": 6,
+        "key": "tvseries-21-ep-6",
+        "value": "WATCHED"
+    },
+    {
+        "userID": 6,
+        "key": "tvseries-21-ep-7",
+        "value": "WATCHED"
+    },
+    {
+        "userID": 6,
+        "key": "tvseries-21-ep-8",
+        "value": "WATCHED"
+    },
+    {
+        "userID": 6,
+        "key": "tvseries-21-ep-9",
+        "value": "WATCHED"
+    }
+]`

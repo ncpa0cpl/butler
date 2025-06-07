@@ -5,6 +5,7 @@ go 1.24.3
 require (
 	github.com/andybalholm/brotli v1.1.1
 	github.com/carlmjohnson/requests v0.24.3
+	github.com/gabriel-vasile/mimetype v1.4.9
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/stretchr/testify v1.10.0
 )

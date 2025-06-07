@@ -41,6 +41,7 @@ func (resp *Response) streamFromReader(ctx echo.Context, request *Request) error
 }
 
 func streamReader(ctx echo.Context, request *Request, resp *Response, reader ButlerReader) error {
+	defer reader.Close()
 	respH := ctx.Response().Header()
 
 	contentType := resp.Headers.Get("Content-Type")

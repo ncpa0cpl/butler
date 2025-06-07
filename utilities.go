@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"hash/fnv"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 
 	"github.com/andybalholm/brotli"
+	"github.com/gabriel-vasile/mimetype"
 )
 
 var ENCODABLE_MIME_TYPES []string = []string{
@@ -233,4 +235,49 @@ func pathJoin(a, b string) string {
 	}
 
 	return strings.TrimRight(a, "/") + "/" + strings.TrimLeft(b, "/")
+}
+
+type mimet struct{}
+
+var Mime mimet
+
+func (mimet) DetectFile(filepath string, file *os.File) string {
+	ext := strings.ToLower(path.Ext(file.Name()))
+	switch ext {
+	case ".js":
+		return "text/javascript"
+	case ".json":
+		return "application/json"
+	case ".css":
+		return "text/css"
+	case ".xml":
+		return "application/xml"
+	case ".html":
+		return "text/html"
+	case ".md":
+		return "text/markdown"
+	case ".yaml", ".yml":
+		return "application/yaml"
+	case ".csv":
+		return "text/csv"
+	}
+
+	t, err := mimetype.DetectReader(file)
+	if err != nil {
+		return "application/octet-stream"
+	}
+
+	return t.String()
+}
+
+type units struct {
+	KB int64
+	MB int64
+	GB int64
+}
+
+var Units units = units{
+	KB: 1024,
+	MB: 1024 * 1024,
+	GB: 1024 * 1024 * 1024,
 }

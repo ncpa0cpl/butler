@@ -16,6 +16,7 @@ type ButlerReader interface {
 	Skip(upto int) (done bool)
 	// Total number of bytes
 	Len() int
+	Close()
 }
 
 type BytesReader struct {
@@ -53,6 +54,8 @@ func (r *BytesReader) Skip(upto int) (done bool) {
 func (r *BytesReader) Len() int {
 	return len(r.bytes)
 }
+
+func (r *BytesReader) Close() {}
 
 type FileReader struct {
 	filesize int64
@@ -104,4 +107,8 @@ func (r *FileReader) Skip(upto int) (done bool) {
 
 func (r *FileReader) Len() int {
 	return int(r.filesize)
+}
+
+func (r *FileReader) Close() {
+	r.file.Close()
 }

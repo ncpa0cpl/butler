@@ -187,8 +187,12 @@ func (resp *Response) File(filepath string, contentType ...string) *Response {
 
 // send the given file with the specified `contentType`, if `contentType` argument
 // is not specified it will be detected automatically
+//
+// Call to this function will close the given `filehandle`
 func (resp *Response) FileHandle(filehandle *os.File, contentType ...string) *Response {
+	filehandle.Seek(0, 0)
 	data, err := io.ReadAll(filehandle)
+	filehandle.Close()
 
 	if err != nil {
 		resp.Status = 500
@@ -209,7 +213,7 @@ func (resp *Response) FileHandle(filehandle *os.File, contentType ...string) *Re
 // sends the data in the given reader in chunks, respects the requests Range header
 //
 // forces a 206 response code
-func (resp *Response) Stream(contentType string, reader ButlerReader) *Response {
+func (resp *Response) Stream(reader ButlerReader, contentType string) *Response {
 	resp.Body = nil
 
 	resp.Status = 206
@@ -222,7 +226,7 @@ func (resp *Response) Stream(contentType string, reader ButlerReader) *Response 
 // sends the given byte array in chunks, respects the requests Range header
 //
 // forces a 206 response code
-func (resp *Response) StreamBytes(contentType string, data []byte) *Response {
+func (resp *Response) StreamBytes(data []byte, contentType string) *Response {
 	resp.Body = nil
 
 	resp.Status = 206
@@ -235,7 +239,7 @@ func (resp *Response) StreamBytes(contentType string, data []byte) *Response {
 // sends the data in the given file in chunks, respects the requests Range header
 //
 // forces a 206 response code
-func (resp *Response) StreamFile(contentType string, filepath string) *Response {
+func (resp *Response) StreamFile(filepath string, contentType string) *Response {
 	resp.Body = nil
 
 	file, err := os.Open(filepath)
@@ -245,13 +249,15 @@ func (resp *Response) StreamFile(contentType string, filepath string) *Response 
 		return resp
 	}
 
-	return resp.StreamFileHandle(contentType, file)
+	return resp.StreamFileHandle(file, contentType)
 }
 
 // sends the data in the given file in chunks, respects the requests Range header
 //
 // forces a 206 response code
-func (resp *Response) StreamFileHandle(contentType string, filehandle *os.File) *Response {
+//
+// Call to this function will close the given `filehandle`
+func (resp *Response) StreamFileHandle(filehandle *os.File, contentType string) *Response {
 	resp.Body = nil
 
 	var err error
