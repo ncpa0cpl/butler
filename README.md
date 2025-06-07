@@ -12,3 +12,4 @@ See [Docs](./docs/README.md)
 - typed search and url params
 - extensive static file server
 - built-in support for Rest style endpoints
+- support for proxying responses

@@ -345,6 +345,26 @@ func (resp) Handler(customHandler func(ctx echo.Context) error) *Response {
 	}
 }
 
+// Redirects the request to a different server.
+//
+// By default the method, body and headers are reused from the current request. Those can be changed by passing
+// a ProxyRequestOptions as a second argument.
+//
+// You can add headers and cookies to the Proxy Response. Status, body, encoding and all other options
+// will not be applied as those are decided by the called server.
+func (resp) Proxy(url string, options ...ProxyRequestOptions) *Response {
+	resp := &Response{}
+
+	var opts *ProxyRequestOptions
+	if len(options) > 0 {
+		opts = &options[0]
+	}
+
+	resp.customHandler = createProxyHandler(resp, url, opts)
+
+	return resp
+}
+
 // HTTP Code: 200
 func (resp) Ok() *Response {
 	return &Response{
