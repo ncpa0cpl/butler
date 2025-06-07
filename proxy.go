@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 
 	"github.com/carlmjohnson/requests"
 	"github.com/labstack/echo/v4"
@@ -58,14 +59,30 @@ func createProxyHandler(response *Response, url string, opts *ProxyRequestOption
 			})
 		}
 
-		response.Headers.CopyInto(ctx.Response().Header())
 		for idx := range response.cookies {
 			cookie := &response.cookies[idx]
 			ctx.SetCookie(cookie)
 		}
 
-		req.CopyHeaders(ctx.Response().Header())
-		req.ToWriter(ctx.Response().Writer)
+		respHeaders := ctx.Response().Header()
+		respWriter := ctx.Response().Writer
+
+		response.Headers.CopyInto(respHeaders)
+
+		req.AddValidator(func(res *http.Response) error {
+			for k, v := range res.Header {
+				if !response.Headers.Has(k) {
+					respHeaders[k] = v
+				}
+			}
+
+			return nil
+		})
+		req.ToWriter(respWriter)
+		req.AddValidator(func(res *http.Response) error {
+			respWriter.WriteHeader(res.StatusCode)
+			return nil
+		})
 
 		return req.Fetch(context.Background())
 	}

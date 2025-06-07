@@ -588,16 +588,30 @@ func TestProxyResponse(t *testing.T) {
 		Handler: func(request *f.Request, params f.NoParams) *f.Response {
 			resp := f.Respond.Proxy("https://swapi.info/api/films")
 			resp.Headers.Set("X-Custom-Header", "butler")
+			resp.Headers.Set("server", "butler")
 			return resp
 		},
 	}
 
+	failingEndp := &f.BasicEndpoint[f.NoParams]{
+		Method: "GET",
+		Path:   "/shouldfail",
+		Handler: func(request *f.Request, params f.NoParams) *f.Response {
+			return f.Respond.Proxy("https://swapi.info/api/film")
+		},
+	}
+
 	server.Add(endp)
+	server.Add(failingEndp)
 
 	go server.Listen()
 	defer server.Close()
 
-	resp, err := http.Get("http://localhost:8080/proxytoswapi")
+	resp, err := http.Get("http://localhost:8080/shouldfail")
+	assert.NoError(err)
+	assert.Equal(404, resp.StatusCode)
+
+	resp, err = http.Get("http://localhost:8080/proxytoswapi")
 	assert.NoError(err)
 	assert.Equal(200, resp.StatusCode)
 
@@ -613,6 +627,9 @@ func TestProxyResponse(t *testing.T) {
 
 	// check if the swapi server defined headers are present
 	assert.Equal("/api/films/all.json", resp.Header.Get("x-matched-path"))
+
+	// headers defined by the butler server should overwrite the swapi headers
+	assert.Equal("butler", resp.Header.Get("server"))
 
 	expectedResponse := []Film{
 		{

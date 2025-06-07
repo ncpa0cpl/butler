@@ -18,6 +18,19 @@ type Headers struct {
 	httpHeaders []header
 }
 
+func (h *Headers) Has(name string) bool {
+	name = strings.ToLower(name)
+
+	for idx := range h.httpHeaders {
+		h := &h.httpHeaders[idx]
+		if h.name == name && len(h.values) > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (h *Headers) Get(name string) string {
 	name = strings.ToLower(name)
 
