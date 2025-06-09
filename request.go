@@ -26,6 +26,10 @@ func NewRequest(ctx echo.Context) *Request {
 	return req
 }
 
+func (r *Request) HttpRequest() *http.Request {
+	return r.ctx.Request()
+}
+
 func (r *Request) Logger() echo.Logger {
 	return r.ctx.Logger()
 }
