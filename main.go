@@ -68,8 +68,12 @@ func (server *Server) Use(middleware Middleware) {
 	server.middlewares = append(server.middlewares, middleware)
 }
 
-func (server *Server) Listen() {
-	server.echo.Start(fmt.Sprintf(":%v", server.Port))
+func (server *Server) Listen() error {
+	err := server.echo.Start(fmt.Sprintf(":%v", server.Port))
+	if err != nil {
+		server.echo.Logger.Error(err)
+	}
+	return err
 }
 
 func (server *Server) Close() {

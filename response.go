@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/labstack/echo/v4"
 )
@@ -82,6 +83,18 @@ func (resp *Response) SetHeaders(headers Headers) *Response {
 // Adds a cookie to be sent along the response
 func (resp *Response) SetCookie(cookie *http.Cookie) *Response {
 	resp.cookies = append(resp.cookies, *cookie)
+	return resp
+}
+
+func (resp *Response) DeleteCookie(name string) *Response {
+	cookie := http.Cookie{
+		Name:  name,
+		Value: "v",
+		// Setting a time in the distant past, like the unix epoch, removes the cookie,
+		// since it has long expired.
+		Expires: time.Unix(0, 0),
+	}
+	resp.cookies = append(resp.cookies, cookie)
 	return resp
 }
 

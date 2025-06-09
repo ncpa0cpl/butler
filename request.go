@@ -10,6 +10,7 @@ import (
 
 type Request struct {
 	ctx     echo.Context
+	Method  string
 	Headers http.Header
 	Data    map[string]any
 }
@@ -17,6 +18,7 @@ type Request struct {
 func NewRequest(ctx echo.Context) *Request {
 	req := &Request{
 		ctx:     ctx,
+		Method:  ctx.Request().Method,
 		Data:    map[string]any{},
 		Headers: ctx.Request().Header,
 	}
