@@ -31,6 +31,7 @@ type Response struct {
 	etag              string
 	logs              []responseLog
 	streamReader      ButlerReader
+	streamWriter      func(HttpWriter) error
 }
 
 // marks this response to be encoded with a given encoding (one of: `auto`, `none`, `gzip`, `brotli`, `deflate`)
@@ -211,12 +212,9 @@ func (resp *Response) FileHandle(filehandle *os.File, contentType ...string) *Re
 }
 
 // sends the data in the given reader in chunks, respects the requests Range header
-//
-// forces a 206 response code
 func (resp *Response) Stream(reader ButlerReader, contentType string) *Response {
 	resp.Body = nil
 
-	resp.Status = 206
 	resp.streamReader = reader
 	resp.Headers.Set("Content-Type", contentType)
 
@@ -224,12 +222,9 @@ func (resp *Response) Stream(reader ButlerReader, contentType string) *Response 
 }
 
 // sends the given byte array in chunks, respects the requests Range header
-//
-// forces a 206 response code
 func (resp *Response) StreamBytes(data []byte, contentType string) *Response {
 	resp.Body = nil
 
-	resp.Status = 206
 	resp.streamReader = NewBytesReader(data)
 	resp.Headers.Set("Content-Type", contentType)
 
@@ -237,8 +232,6 @@ func (resp *Response) StreamBytes(data []byte, contentType string) *Response {
 }
 
 // sends the data in the given file in chunks, respects the requests Range header
-//
-// forces a 206 response code
 func (resp *Response) StreamFile(filepath string, contentType string) *Response {
 	resp.Body = nil
 
@@ -254,8 +247,6 @@ func (resp *Response) StreamFile(filepath string, contentType string) *Response 
 
 // sends the data in the given file in chunks, respects the requests Range header
 //
-// forces a 206 response code
-//
 // Call to this function will close the given `filehandle`
 func (resp *Response) StreamFileHandle(filehandle *os.File, contentType string) *Response {
 	resp.Body = nil
@@ -268,9 +259,45 @@ func (resp *Response) StreamFileHandle(filehandle *os.File, contentType string) 
 		return resp
 	}
 
-	resp.Status = 206
 	resp.Headers.Set("Content-Type", contentType)
 
+	return resp
+}
+
+/*
+Send a response in chunks through a writer
+
+Each write to the writer will flush the written data, allowing the client to receive and process parts of
+the response while the server is still generating the rest of the response.
+
+It is safe to write to the given writer in parallel from different go routines.
+
+If a write is called after the client closes the connection, write will return false.
+
+@example
+
+	Respond.Ok().StreamWriter(func (w HttpWriter) error {
+	    var wg sync.WaitGroup
+
+		wg.Add(1)
+		go getPartOfTheResponseDataThen(func(data []byte) {
+		    w.Write(data)
+		    wg.Done()
+	    })
+
+		wg.Add(1)
+		go getAnotherPartOfTheResponseDataThen(func(data []byte) {
+		    w.Write(data)
+			wg.Done()
+		})
+
+		wg.Wait()
+		return nil
+	})
+*/
+func (resp *Response) StreamWriter(handler func(HttpWriter) error) *Response {
+	resp.Body = nil
+	resp.streamWriter = handler
 	return resp
 }
 
@@ -298,17 +325,23 @@ func (resp *Response) send(request *Request) error {
 
 	resp.Headers.CopyInto(ctx.Response().Header())
 
+	if resp.streamWriter != nil {
+		return resp.streamFromWriter(ctx, resp.streamWriter)
+	}
+
 	if resp.streamReader != nil {
 		return resp.streamFromReader(ctx, request)
-	} else if resp.Body != nil && len(resp.Body) > 0 {
-		if resp.shouldStream(request) {
+	}
+
+	if resp.Body != nil && len(resp.Body) > 0 {
+		if resp.shouldAutoStream(request) {
 			return resp.stream(ctx, request)
 		} else {
 			return ctx.Blob(resp.Status, resp.Headers.Get("Content-Type"), resp.Body)
 		}
-	} else {
-		return ctx.NoContent(resp.Status)
 	}
+
+	return ctx.NoContent(resp.Status)
 }
 
 func (resp *Response) encodeBody(request *Request) error {
@@ -334,8 +367,10 @@ func (resp *Response) encodeBody(request *Request) error {
 	return nil
 }
 
-func (resp *Response) shouldStream(request *Request) bool {
-	return resp.AllowStreaming && request.Headers.Get("Range") != ""
+func (resp *Response) shouldAutoStream(request *Request) bool {
+	return resp.AllowStreaming &&
+		resp.Status < 300 &&
+		(request.Headers.Get("Range") != "" || len(resp.Body) >= int(10*Units.MB))
 }
 
 type resp struct{}

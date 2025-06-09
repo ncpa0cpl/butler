@@ -55,15 +55,15 @@ response := &butler.Respond.Ok().File("path/to/my/file.jpg", "image/jpg")
 ```go
 // stream a byte array
 var data []byte
-response := &butler.Respond.PartialContent().StreamBytes("video/mp4", data)
+response := &butler.Respond.Ok().StreamBytes("video/mp4", data)
 
 // stream a file
-response := &butler.Respond.PartialContent().StreamFile("video/mp4", "path/to/my/file.mp4")
+response := &butler.Respond.Ok().StreamFile("video/mp4", "path/to/my/file.mp4")
 
 // stream from a ButlerReader
 file, _ := os.Open("my/file")
 reader := butler.NewFileReader(file)
-response := &butler.Respond.PartialContent().Stream("video/mp4", reader)
+response := &butler.Respond.Ok().Stream("video/mp4", reader)
 ```
 
 #### ButlerReader
@@ -89,8 +89,8 @@ type ButlerReader interface {
 
 ## Automatic streaming
 
-If the endpoint is not disallowed and the request contains a `Range` header, the Response.Body will be streamed
-automatically.
+If the endpoint is not disallowed and the request contains a `Range` header, the Response.Body of any
+successful request will be streamed automatically.
 
 If you want to disable automatic streaming, call `SetAllowStreaming(false)` on the response.
 

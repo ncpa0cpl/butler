@@ -1,9 +1,11 @@
 package httpbutler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 
 	echo "github.com/labstack/echo/v4"
 )
@@ -69,6 +71,9 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 			HasStart: true,
 			HasEnd:   true,
 		}
+	} else {
+		// if the request contained a Range header we must set the code to 206 (Partial Content)
+		resp.Status = 206
 	}
 
 	if !requestedRange.HasEnd {
@@ -128,7 +133,12 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 				return err
 			}
 
-			writer.Write(buff)
+			_, err = writer.Write(buff)
+			if err != nil {
+				ctx.Logger().Error("encountered an unexpected error when writing to the http.ResponseWriter")
+				return err
+			}
+
 			flusher.Flush()
 			sent += len(buff)
 
@@ -140,9 +150,81 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 		var buff []byte
 		reader.Read(requestedLen, &buff)
 
-		writer.Write(buff)
+		_, err = writer.Write(buff)
+		if err != nil {
+			ctx.Logger().Error("encountered an unexpected error when writing to the http.ResponseWriter")
+			return err
+		}
+
 		flusher.Flush()
 	}
 
 	return nil
+}
+
+type HttpWriter interface {
+	// writes the data to the http response and flushes
+	//
+	// if the connection was closed by the client, will not do anything and return true
+	Write(buff []byte) (connClosed bool)
+	// same as Write but accepts string as argument
+	WriteString(str string) (connClosed bool)
+}
+
+type flushWriter struct {
+	reqContext context.Context
+	writer     http.ResponseWriter
+	flusher    http.Flusher
+	mx         sync.Mutex
+}
+
+func (fw *flushWriter) Write(buff []byte) bool {
+	fw.mx.Lock()
+	defer fw.mx.Unlock()
+
+	channelDone := fw.reqContext.Done()
+	select {
+	case <-channelDone:
+		return true
+	default:
+		// no-op
+	}
+
+	_, err := fw.writer.Write(buff)
+	if err != nil {
+		panic("encountered an unexpected error when writing to the http.ResponseWriter")
+	}
+
+	fw.flusher.Flush()
+	return false
+}
+
+func (fw *flushWriter) WriteString(str string) bool {
+	return fw.Write([]byte(str))
+}
+
+func (resp *Response) streamFromWriter(ctx echo.Context, handler func(HttpWriter) error) error {
+	respH := ctx.Response().Header()
+
+	contentType := resp.Headers.Get("Content-Type")
+
+	settings := resp.StreamingSettings
+	if settings == nil {
+		settings = &DEFAULT_STREAMING_SETTINGS
+	}
+
+	respH.Set("Connection", "keep-alive")
+	respH.Set("Keep-Alive", settings.genKeepAliveHeader())
+	respH.Set("Content-Type", contentType)
+
+	writer := ctx.Response().Writer
+	flusher, ok := writer.(http.Flusher)
+	if !ok {
+		panic("unable to get the http.Flusher")
+	}
+
+	writer.WriteHeader(resp.Status)
+
+	httpw := &flushWriter{ctx.Request().Context(), writer, flusher, sync.Mutex{}}
+	return handler(httpw)
 }

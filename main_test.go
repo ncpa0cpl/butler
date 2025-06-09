@@ -453,7 +453,7 @@ func TestFsEndpoint(t *testing.T) {
 	resp, err = client.Do(request)
 	noErr(err)
 
-	assert.Equal(206, resp.StatusCode)
+	assert.Equal(200, resp.StatusCode)
 	assert.Equal("", resp.Header.Get("content-encoding"))
 	assert.Equal("video/mp4", resp.Header.Get("content-type"))
 	assert.Equal("bytes 0-5242943/5242944", resp.Header.Get("content-range"))
@@ -567,7 +567,7 @@ func TestStreamEndpoint(t *testing.T) {
 	resp, err = client.Do(request)
 	noErr(err)
 
-	assert.Equal(206, resp.StatusCode)
+	assert.Equal(200, resp.StatusCode)
 	assert.Equal("bytes 0-184/185", resp.Header.Get("content-range"))
 	assert.Equal("185", resp.Header.Get("content-length"))
 
@@ -576,6 +576,85 @@ func TestStreamEndpoint(t *testing.T) {
 		TEST_FILE_DATA,
 		body,
 	)
+}
+
+func TestWriterStreaming(t *testing.T) {
+	assert := assert.New(t)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	stream := &f.BasicEndpoint[f.NoParams]{
+		Method: "GET",
+		Path:   "/streamhtml",
+		Handler: func(request *f.Request, params f.NoParams) *f.Response {
+			return f.Respond.Ok().StreamWriter(func(w f.HttpWriter) error {
+				w.WriteString("<div>response</div>\n")
+
+				time.Sleep(time.Second / 4)
+				w.WriteString("<script hx-swap-oob=\"true\">console.log('hello')</script>\n")
+
+				time.Sleep(time.Second / 4)
+				w.WriteString("<script hx-swap-oob=\"true\">console.log('world')</script>\n")
+
+				return nil
+			})
+		},
+	}
+
+	server.Add(stream)
+
+	go server.Listen()
+	defer server.Close()
+
+	client := &http.Client{}
+
+	// check if the full body makes it to the client
+	request, err := http.NewRequest("GET", "http://localhost:8080/streamhtml", nil)
+	noErr(err)
+	resp, err := client.Do(request)
+	noErr(err)
+
+	assert.Equal(200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.Equal(
+		"<div>response</div>\n<script hx-swap-oob=\"true\">console.log('hello')</script>\n<script hx-swap-oob=\"true\">console.log('world')</script>\n",
+		string(body),
+	)
+
+	// check if each write is flushed separately
+	request, err = http.NewRequest("GET", "http://localhost:8080/streamhtml", nil)
+	noErr(err)
+	resp, err = client.Do(request)
+	noErr(err)
+
+	assert.Equal(200, resp.StatusCode)
+
+	i := 0
+loop:
+	for {
+		buff := make([]byte, 1024)
+		n, err := resp.Body.Read(buff)
+		if n > 0 {
+			switch i {
+			case 0:
+				assert.Equal("<div>response</div>\n", string(buff[:n]))
+			case 1:
+				assert.Equal("<script hx-swap-oob=\"true\">console.log('hello')</script>\n", string(buff[:n]))
+			case 2:
+				assert.Equal("<script hx-swap-oob=\"true\">console.log('world')</script>\n", string(buff[:n]))
+				break loop
+			}
+			i++
+		}
+
+		if err == io.EOF {
+			assert.Equal(0, 1, "loop did not exit on last read")
+		}
+	}
+
+	assert.Equal(2, i)
 }
 
 func TestRestEndpointHandling(t *testing.T) {
