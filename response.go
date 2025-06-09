@@ -225,6 +225,8 @@ func (resp *Response) FileHandle(filehandle *os.File, contentType ...string) *Re
 }
 
 // sends the data in the given reader in chunks, respects the requests Range header
+//
+// note: when streaming auto etag generation will be disabled
 func (resp *Response) Stream(reader ButlerReader, contentType string) *Response {
 	resp.Body = nil
 
@@ -235,6 +237,8 @@ func (resp *Response) Stream(reader ButlerReader, contentType string) *Response 
 }
 
 // sends the given byte array in chunks, respects the requests Range header
+//
+// note: when streaming auto etag generation will be disabled
 func (resp *Response) StreamBytes(data []byte, contentType string) *Response {
 	resp.Body = nil
 
@@ -245,6 +249,8 @@ func (resp *Response) StreamBytes(data []byte, contentType string) *Response {
 }
 
 // sends the data in the given file in chunks, respects the requests Range header
+//
+// note: when streaming auto etag generation will be disabled
 func (resp *Response) StreamFile(filepath string, contentType string) *Response {
 	resp.Body = nil
 
@@ -261,6 +267,8 @@ func (resp *Response) StreamFile(filepath string, contentType string) *Response 
 // sends the data in the given file in chunks, respects the requests Range header
 //
 // Call to this function will close the given `filehandle`
+//
+// note: when streaming auto etag generation will be disabled
 func (resp *Response) StreamFileHandle(filehandle *os.File, contentType string) *Response {
 	resp.Body = nil
 

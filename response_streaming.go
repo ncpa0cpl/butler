@@ -17,7 +17,7 @@ type StreamingSettings struct {
 }
 
 var DEFAULT_STREAMING_SETTINGS StreamingSettings = StreamingSettings{
-	ChunkSize:        1024,
+	ChunkSize:        uint(Units.MB) / 4, // 256KB
 	KeepAliveTimeout: 5,
 	KeepAliveMax:     1000,
 }
