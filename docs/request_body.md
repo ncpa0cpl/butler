@@ -9,7 +9,7 @@ respond with a 400 status code.
 ```go
 package main
 
-import butler "github.com/ncpa0cpl/http-butler"
+import butler "github.com/ncpa0cpl/butler"
 
 type RequestPayload struct {
 	ID    string `json:"id"`

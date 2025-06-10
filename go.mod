@@ -1,4 +1,4 @@
-module github.com/ncpa0cpl/http-butler
+module github.com/ncpa0cpl/butler
 
 go 1.24.3
 

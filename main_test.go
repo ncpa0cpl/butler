@@ -1,4 +1,4 @@
-package httpbutler_test
+package butler_test
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
-	f "github.com/ncpa0cpl/http-butler"
+	f "github.com/ncpa0cpl/butler"
 	"github.com/stretchr/testify/assert"
 )
 

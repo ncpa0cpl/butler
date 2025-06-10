@@ -1,4 +1,4 @@
-package httpbutler
+package butler
 
 import (
 	echo "github.com/labstack/echo/v4"

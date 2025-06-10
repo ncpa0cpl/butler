@@ -1,4 +1,4 @@
-package httpbutler
+package butler
 
 import (
 	"context"

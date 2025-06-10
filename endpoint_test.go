@@ -1,4 +1,4 @@
-package httpbutler_test
+package butler_test
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"time"
 
 	echo "github.com/labstack/echo/v4"
-	f "github.com/ncpa0cpl/http-butler"
+	f "github.com/ncpa0cpl/butler"
 	"github.com/stretchr/testify/assert"
 )
 

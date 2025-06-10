@@ -5,7 +5,7 @@ Rest style endpoints can be easily implemented using the `butler.RestEndpoint` s
 ```go
 package main
 
-import butler "github.com/ncpa0cpl/http-butler"
+import butler "github.com/ncpa0cpl/butler"
 
 // define a struct that implements the butler.RestResource interface
 type Resource struct {

@@ -1,11 +1,11 @@
-package httpbutler_test
+package butler_test
 
 import (
 	"net/http"
 	"testing"
 	"time"
 
-	f "github.com/ncpa0cpl/http-butler"
+	f "github.com/ncpa0cpl/butler"
 	"github.com/stretchr/testify/assert"
 )
 

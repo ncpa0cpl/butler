@@ -5,7 +5,7 @@ Static files can be easily hosted by using the `butler.FsEndpoint` struct.
 ```go
 package main
 
-import butler "github.com/ncpa0cpl/http-butler"
+import butler "github.com/ncpa0cpl/butler"
 
 func main() {
 	app := butler.CreateServer()
@@ -30,7 +30,7 @@ The handler of a FsEndpoint can change how a Response is created for a file, but
 ```go
 package main
 
-import butler "github.com/ncpa0cpl/http-butler"
+import butler "github.com/ncpa0cpl/butler"
 
 func main() {
 	app := butler.CreateServer()

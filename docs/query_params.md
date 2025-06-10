@@ -6,7 +6,7 @@ and provide them to your handler or fail the request with a 400 if the parsing w
 ```go
 package main
 
-import butler "github.com/ncpa0cpl/http-butler"
+import butler "github.com/ncpa0cpl/butler"
 
 type SearchParams struct {
 	Query *butler.StringQParam
@@ -48,7 +48,7 @@ Path parameters can be accessed similarly to the query params.
 ```go
 package main
 
-import butler "github.com/ncpa0cpl/http-butler"
+import butler "github.com/ncpa0cpl/butler"
 
 type UserParams struct {
 	ID *butler.NumberUrlParam

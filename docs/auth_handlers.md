@@ -8,7 +8,7 @@ the endpoints.
 ```go
 package main
 
-import butler "github.com/ncpa0cpl/http-butler"
+import butler "github.com/ncpa0cpl/butler"
 
 func main() {
 	app := butler.CreateServer()

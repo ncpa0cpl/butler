@@ -23,7 +23,7 @@ Cache control header is a http standard that determines how the clients, cdns an
 ```go
 package main
 
-import butler "github.com/ncpa0cpl/http-butler"
+import butler "github.com/ncpa0cpl/butler"
 
 func main() {
 	app := butler.CreateServer()

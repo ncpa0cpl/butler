@@ -5,7 +5,7 @@ Usage and perofrmance of the http butler server can be done easily by providing 
 ```go
 package main
 
-import butler "github.com/ncpa0cpl/http-butler"
+import butler "github.com/ncpa0cpl/butler"
 
 type MyMonitor struct {}
 
