@@ -13,3 +13,4 @@ See [Docs](./docs/README.md)
 - extensive static file server
 - built-in support for Rest style endpoints
 - support for proxying responses
+- easy to setup usage and performance monitoring
