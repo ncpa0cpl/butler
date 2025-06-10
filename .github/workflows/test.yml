@@ -1,0 +1,12 @@
+name: Run Unit Tests
+run-name: ${{ github.actor }} is running unit tests 🚀
+on:
+  push:
+    branches:
+      - master
+jobs:
+  Run-Unit-Tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test
+        uses: robherley/go-test-action@v0
