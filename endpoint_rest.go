@@ -57,6 +57,10 @@ func (g *RestEndpoints[T, B]) GetAuthHandlers() []AuthHandler {
 	return append(g.parent.GetAuthHandlers(), g.Auth)
 }
 
+func (g *RestEndpoints[T, B]) GetServer() *Server {
+	return g.parent.GetServer()
+}
+
 func (g *RestEndpoints[T, B]) Use(middleware Middleware) {
 	g.middlewares = append(g.middlewares, middleware)
 }

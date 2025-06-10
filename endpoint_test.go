@@ -79,6 +79,9 @@ func (s *TestServer) GetEcho() f.EchoServer {
 func (s *TestServer) GetAuthHandlers() []f.AuthHandler {
 	return []f.AuthHandler{}
 }
+func (s *TestServer) GetServer() *f.Server {
+	return &f.Server{}
+}
 
 type QParams struct {
 	Search     *f.StringQParam

@@ -17,6 +17,7 @@ type EchoServer interface {
 }
 
 type EndpointParent interface {
+	GetServer() *Server
 	GetEcho() EchoServer
 	GetMiddlewares() []Middleware
 	GetPath() string
@@ -28,10 +29,11 @@ type EndpointInterface interface {
 }
 
 type Server struct {
-	Port        int
-	echo        *echo.Echo
-	endpoints   []EndpointInterface
-	middlewares []Middleware
+	Port         int
+	echo         *echo.Echo
+	endpoints    []EndpointInterface
+	middlewares  []Middleware
+	usageMonitor UsageMonitor
 }
 
 func CreateServer() *Server {
@@ -59,6 +61,10 @@ func (server *Server) GetAuthHandlers() []AuthHandler {
 	return []AuthHandler{}
 }
 
+func (server *Server) GetServer() *Server {
+	return server
+}
+
 func (server *Server) Add(endpoint EndpointInterface) {
 	routes := endpoint.Register(server)
 	server.endpoints = append(server.endpoints, routes...)
@@ -66,6 +72,13 @@ func (server *Server) Add(endpoint EndpointInterface) {
 
 func (server *Server) Use(middleware Middleware) {
 	server.middlewares = append(server.middlewares, middleware)
+}
+
+// add a usage monitor to the app
+//
+// monitor will only receive records for endpoints that were added after the monitor was registered
+func (server *Server) Monitor(usageMonitor UsageMonitor) {
+	server.usageMonitor = usageMonitor
 }
 
 func (server *Server) Listen() error {

@@ -16,6 +16,9 @@ type AnyEndpoint interface {
 }
 
 func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
+	server := parent.GetServer()
+	monitor := createMonitorRecorder(server)
+
 	echoServer := parent.GetEcho()
 	basepath := parent.GetPath()
 	middlewares := append(parent.GetMiddlewares(), e.GetMiddlewares()...)
@@ -38,17 +41,25 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 	}
 
 	handler := func(ctx echo.Context) error {
-		request := NewRequest(ctx)
+		request := NewRequest(ctx, monitor)
 
-		for _, authHandler := range authHandlers {
-			auth := authHandler(request)
-			if !auth.IsSuccessful() {
-				return auth.SendResponse(request)
+		if len(authHandlers) > 0 {
+			request.monitorStart(MonitorStep.Auth, "")
+
+			for _, authHandler := range authHandlers {
+				auth := authHandler(request)
+				if !auth.IsSuccessful() {
+					return auth.SendResponse(request)
+				}
 			}
+
+			request.monitorEnd(MonitorStep.Auth, "")
 		}
 
 		var response *Response
 		for _, md := range reqMiddlewares {
+			request.monitorStart(MonitorStep.ReqMiddleware, md.Name)
+
 			err := md.OnRequest(
 				request,
 				func(nextReq *Request) {
@@ -58,6 +69,8 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 					response = sendInstead
 				},
 			)
+
+			request.monitorEnd(MonitorStep.ReqMiddleware, md.Name)
 
 			if err != nil {
 				ctx.Logger().Errorf("middleware %s request handler returned an error", md.Name)
@@ -70,10 +83,14 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 		}
 
 		if response == nil {
+			request.monitorStart(MonitorStep.Handler, "")
 			response = e.ExecuteHandler(ctx, request)
+			request.monitorEnd(MonitorStep.Handler, "")
 		}
 
 		for _, md := range respMiddlewares {
+			request.monitorStart(MonitorStep.ResMiddleware, md.Name)
+
 			err := md.OnResponse(
 				request,
 				response,
@@ -81,6 +98,8 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 					response = sendInstead
 				},
 			)
+
+			request.monitorEnd(MonitorStep.ResMiddleware, md.Name)
 
 			if err != nil {
 				ctx.Logger().Errorf("middleware %s response handler returned an error", md.Name)
@@ -104,10 +123,13 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 		if response.Status < 300 {
 			cp := resolveCachePolicy(cachePolicy, response)
 			if cp != nil {
+
 				response.Headers.Set("Cache-Control", cp.ToString())
 
 				if !cp.DisableETagGeneration {
+					request.monitorStart(MonitorStep.EtagHandler, "")
 					AddEtag(response)
+					request.monitorEnd(MonitorStep.EtagHandler, "")
 				}
 
 				if !cp.DisableAutoResponseSkipping {
@@ -115,11 +137,16 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 					if etag != "" {
 						ifNoneMatch := request.Headers.Get("If-None-Match")
 						if etag == ifNoneMatch {
-							response.Headers.CopyInto(ctx.Response().Header())
-							return ctx.NoContent(304)
+							response.Status = 304
+							response.Body = nil
+							response.streamReader = nil
+							response.streamWriter = nil
+							response.customHandler = nil
+							return response.send(request)
 						}
 					}
 				}
+
 			}
 		}
 

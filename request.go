@@ -9,18 +9,27 @@ import (
 )
 
 type Request struct {
-	ctx     echo.Context
 	Method  string
 	Headers http.Header
+	Path    string
 	Data    map[string]any
+
+	monitor       monitorRecorder
+	monitorRecord RecordBuilder
+	ctx           echo.Context
 }
 
-func NewRequest(ctx echo.Context) *Request {
+func NewRequest(ctx echo.Context, monitor monitorRecorder) *Request {
+	path := ctx.Request().URL.Path
+
 	req := &Request{
-		ctx:     ctx,
-		Method:  ctx.Request().Method,
-		Data:    map[string]any{},
-		Headers: ctx.Request().Header,
+		ctx:           ctx,
+		monitor:       monitor,
+		monitorRecord: monitor.CreateRecord(path),
+		Path:          path,
+		Method:        ctx.Request().Method,
+		Data:          map[string]any{},
+		Headers:       ctx.Request().Header,
 	}
 
 	return req
@@ -56,4 +65,16 @@ func (r *Request) MultipartForm() (*multipart.Form, error) {
 
 func (r *Request) EchoContext() echo.Context {
 	return r.ctx
+}
+
+func (r *Request) monitorStart(step, name string) {
+	r.monitorRecord.StepStart(step, name)
+}
+
+func (r *Request) monitorEnd(step, name string) {
+	r.monitorRecord.StepEnd(step, name)
+}
+
+func (r *Request) completeMonitor() {
+	r.monitor.FinalizeRecord(r.monitorRecord)
 }

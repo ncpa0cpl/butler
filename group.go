@@ -31,6 +31,10 @@ func (g *Group) GetAuthHandlers() []AuthHandler {
 	return append(g.parent.GetAuthHandlers(), g.Auth)
 }
 
+func (g *Group) GetServer() *Server {
+	return g.parent.GetServer()
+}
+
 func (g *Group) Add(endpoint EndpointInterface) {
 	g.routes = append(g.routes, endpoint)
 }

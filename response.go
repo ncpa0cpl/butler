@@ -324,9 +324,13 @@ func (resp *Response) StreamWriter(handler func(HttpWriter) error) *Response {
 
 func (resp *Response) send(request *Request) error {
 	ctx := request.EchoContext()
+	defer request.completeMonitor()
 
 	if resp.customHandler != nil {
-		return resp.customHandler(ctx)
+		request.monitorStart(MonitorStep.Custom, "")
+		err := resp.customHandler(ctx)
+		request.monitorEnd(MonitorStep.Custom, "")
+		return err
 	}
 
 	if resp.AllowStreaming {
@@ -338,7 +342,9 @@ func (resp *Response) send(request *Request) error {
 		ctx.SetCookie(cookie)
 	}
 
+	request.monitorStart(MonitorStep.Encoding, "")
 	encodeErr := resp.encodeBody(request)
+	request.monitorEnd(MonitorStep.Encoding, "")
 
 	if encodeErr != nil {
 		ctx.Logger().Error(encodeErr)
