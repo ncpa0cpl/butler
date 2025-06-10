@@ -37,9 +37,8 @@ func main() {
 
 ## OnRequest
 
-OnRequest function will run for every received request that did not fail auth or body/params parsing. It is given
-two callbacks: `next()` and `respond()`. Next callback can be used to replace the response object that will be used
-for the subsequent middlwares and handlers. Respond callback can be used to immediately send a response to the client,
+OnRequest function will run for every received request that did not fail auth. It is given
+onr callback: `respond()`. It can be used to immediately send a response to the client,
 skipping the subsequent middlewares and handlers.
 
 ## OnResponse

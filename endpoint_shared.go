@@ -62,9 +62,6 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 			err := md.OnRequest(
 				request,
-				func(nextReq *Request) {
-					request = nextReq
-				},
 				func(sendInstead *Response) {
 					response = sendInstead
 				},

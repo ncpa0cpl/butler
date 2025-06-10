@@ -47,7 +47,7 @@ func TestUsageMonitor(t *testing.T) {
 
 	group.Use(f.Middleware{
 		Name: "MdFoo",
-		OnRequest: func(request *f.Request, next func(request *f.Request), respond func(response *f.Response)) error {
+		OnRequest: func(request *f.Request, respond func(response *f.Response)) error {
 			return nil
 		},
 		OnResponse: func(request *f.Request, response *f.Response, next func(response *f.Response)) error {

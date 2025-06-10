@@ -2,7 +2,6 @@ package butler
 
 type MiddlewareRequestHandler func(
 	request *Request,
-	next func(request *Request),
 	respond func(response *Response),
 ) error
 
