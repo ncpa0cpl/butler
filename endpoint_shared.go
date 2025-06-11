@@ -27,6 +27,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 	cachePolicy := e.GetCachePolicy()
 	streamSettings := e.GetStreamingSettings()
 	fullpath := pathJoin(basepath, e.GetPath())
+	method := e.GetMethod()
 
 	reqMiddlewares := getReqMiddlewares(middlewares)
 	respMiddlewares := getRespMiddlewares(middlewares)
@@ -117,7 +118,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 			response.StreamingSettings = streamSettings
 		}
 
-		if response.Status < 300 {
+		if response.Status < 300 && request.Method == "GET" {
 			cp := resolveCachePolicy(cachePolicy, response)
 			if cp != nil {
 
@@ -154,7 +155,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 		return response.send(request)
 	}
 
-	switch e.GetMethod() {
+	switch method {
 	case "GET":
 		echoServer.GET(fullpath, handler)
 		return
@@ -175,6 +176,9 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 		return
 	case "HEAD":
 		echoServer.HEAD(fullpath, handler)
+		return
+	case "ANY":
+		echoServer.Any(fullpath, handler)
 		return
 	}
 

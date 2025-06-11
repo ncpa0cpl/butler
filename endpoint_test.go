@@ -23,6 +23,7 @@ type TestServer struct {
 	deleteRoutes  []TestRegisteredRoute
 	headRoutes    []TestRegisteredRoute
 	optionsRoutes []TestRegisteredRoute
+	anyRoutes     []TestRegisteredRoute
 }
 
 func (s *TestServer) GET(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
@@ -63,6 +64,12 @@ func (s *TestServer) OPTIONS(path string, h echo.HandlerFunc, m ...echo.Middlewa
 }
 func (s *TestServer) HEAD(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
 	s.headRoutes = append(s.optionsRoutes, TestRegisteredRoute{
+		path, h,
+	})
+	return nil
+}
+func (s *TestServer) Any(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) []*echo.Route {
+	s.anyRoutes = append(s.anyRoutes, TestRegisteredRoute{
 		path, h,
 	})
 	return nil

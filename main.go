@@ -14,6 +14,7 @@ type EchoServer interface {
 	DELETE(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
 	OPTIONS(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
 	HEAD(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
+	Any(path string, handler echo.HandlerFunc, middleware ...echo.MiddlewareFunc) []*echo.Route
 }
 
 type EndpointParent interface {
