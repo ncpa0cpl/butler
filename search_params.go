@@ -67,7 +67,7 @@ func (p *NumberQParam) Get(defaultValue ...int64) int64 {
 func (p *NumberQParam) Set(value string) *ParamParsingError {
 	num, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		return &ParamParsingError{400, "Bad Request", "parsing to number failed"}
+		return &ParamParsingError{400, "Bad Request", "parsing to number failed", ""}
 	}
 
 	p.value = num
@@ -153,7 +153,7 @@ func (p *NumberUrlParam) Get() int64 {
 func (p *NumberUrlParam) Set(value string) *ParamParsingError {
 	num, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		return &ParamParsingError{400, "Bad Request", "parsing to number failed"}
+		return &ParamParsingError{400, "Bad Request", "parsing to number failed", ""}
 	}
 
 	p.value = num
@@ -198,6 +198,7 @@ type ParamParsingError struct {
 	StatusCode int
 	Message    string
 	LogMessage string
+	paramName  string
 }
 
 func (e *ParamParsingError) Response() *Response {
@@ -211,7 +212,7 @@ func (e *ParamParsingError) Response() *Response {
 }
 
 func (e *ParamParsingError) ToString() string {
-	return fmt.Sprintf("%s: %s", e.Message, e.LogMessage)
+	return fmt.Sprintf("%s: [param='%s'] %s", e.Message, e.paramName, e.LogMessage)
 }
 
 type RequestContext interface {
@@ -223,7 +224,10 @@ type RequestContext interface {
 
 type paramBinder[T any] func(ctx RequestContext) (T, *ParamParsingError)
 
-type internalParamBinder func(rval reflect.Value, ctx RequestContext) *ParamParsingError
+type internalParamBinder struct {
+	paramName string
+	bind      func(rval reflect.Value, ctx RequestContext) *ParamParsingError
+}
 
 func CreateSearchParamsBinder[T any]() paramBinder[T] {
 	var paramsType T
@@ -242,20 +246,26 @@ func CreateSearchParamsBinder[T any]() paramBinder[T] {
 			paramName := strings.ToLower(fname)
 
 			if field.Type.Kind() != reflect.Pointer {
-				paramKeys = append(paramKeys, func(rval reflect.Value, ctx RequestContext) *ParamParsingError {
-					field := rval.FieldByName(fname)
-					fieldValue := field.Interface()
-					qParam := fieldValue.(SearchQParam)
-					return qParam.Init(ctx, paramName)
+				paramKeys = append(paramKeys, internalParamBinder{
+					paramName: paramName,
+					bind: func(rval reflect.Value, ctx RequestContext) *ParamParsingError {
+						field := rval.FieldByName(fname)
+						fieldValue := field.Interface()
+						qParam := fieldValue.(SearchQParam)
+						return qParam.Init(ctx, paramName)
+					},
 				})
 			} else {
-				paramKeys = append(paramKeys, func(rval reflect.Value, ctx RequestContext) *ParamParsingError {
-					field := rval.FieldByName(fname)
-					v := reflect.New(field.Type().Elem())
-					field.Set(v)
-					fieldValue := v.Interface()
-					qParam := fieldValue.(SearchQParam)
-					return qParam.Init(ctx, paramName)
+				paramKeys = append(paramKeys, internalParamBinder{
+					paramName: paramName,
+					bind: func(rval reflect.Value, ctx RequestContext) *ParamParsingError {
+						field := rval.FieldByName(fname)
+						v := reflect.New(field.Type().Elem())
+						field.Set(v)
+						fieldValue := v.Interface()
+						qParam := fieldValue.(SearchQParam)
+						return qParam.Init(ctx, paramName)
+					},
 				})
 			}
 		} else {
@@ -267,9 +277,10 @@ func CreateSearchParamsBinder[T any]() paramBinder[T] {
 		var params T
 		paramsT := reflect.ValueOf(&params).Elem()
 
-		for _, bind := range paramKeys {
-			err := bind(paramsT, ctx)
+		for _, binder := range paramKeys {
+			err := binder.bind(paramsT, ctx)
 			if err != nil {
+				err.paramName = binder.paramName
 				return params, err
 			}
 		}

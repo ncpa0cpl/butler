@@ -71,7 +71,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 			request.monitorEnd(MonitorStep.ReqMiddleware, md.Name)
 
 			if err != nil {
-				ctx.Logger().Errorf("middleware %s request handler returned an error", md.Name)
+				request.Logger.Errorf("middleware %s request handler returned an error", md.Name)
 				return err
 			}
 
@@ -100,13 +100,13 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 			request.monitorEnd(MonitorStep.ResMiddleware, md.Name)
 
 			if err != nil {
-				ctx.Logger().Errorf("middleware %s response handler returned an error", md.Name)
+				request.Logger.Errorf("middleware %s response handler returned an error", md.Name)
 				return err
 			}
 		}
 
 		if response == nil {
-			ctx.Logger().Errorf("endpoint handler did not return a response [path=%s]", fullpath)
+			request.Logger.Errorf("endpoint handler did not return a response [path=%s]", fullpath)
 			return ctx.NoContent(500)
 		}
 

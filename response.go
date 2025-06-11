@@ -347,7 +347,7 @@ func (resp *Response) send(request *Request) error {
 	request.monitorEnd(MonitorStep.Encoding, "")
 
 	if encodeErr != nil {
-		ctx.Logger().Error(encodeErr)
+		request.Logger.Error(encodeErr)
 	}
 
 	resp.Headers.CopyInto(ctx.Response().Header())

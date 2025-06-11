@@ -135,7 +135,7 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 
 			_, err = writer.Write(buff)
 			if err != nil {
-				ctx.Logger().Error("encountered an unexpected error when writing to the http.ResponseWriter")
+				request.Logger.Error("encountered an unexpected error when writing to the http.ResponseWriter")
 				return err
 			}
 
@@ -152,7 +152,7 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 
 		_, err = writer.Write(buff)
 		if err != nil {
-			ctx.Logger().Error("encountered an unexpected error when writing to the http.ResponseWriter")
+			request.Logger.Error("encountered an unexpected error when writing to the http.ResponseWriter")
 			return err
 		}
 

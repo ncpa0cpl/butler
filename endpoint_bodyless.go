@@ -61,7 +61,7 @@ func (e *BasicEndpoint[T]) ExecuteHandler(ctx echo.Context, request *Request) (r
 
 	params, err := e.bindParams(ctx)
 	if err != nil {
-		ctx.Logger().Error(err.ToString())
+		request.Logger.Error(err.ToString())
 		return err.Response()
 	}
 

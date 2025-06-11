@@ -2,6 +2,7 @@ package butler
 
 import (
 	"fmt"
+	"os"
 
 	echo "github.com/labstack/echo/v4"
 )
@@ -39,6 +40,9 @@ type Server struct {
 
 func CreateServer() *Server {
 	e := echo.New()
+
+	e.Logger = NewButlerLogger("butler", os.Stdout)
+
 	return &Server{
 		Port:      80,
 		echo:      e,
@@ -48,6 +52,14 @@ func CreateServer() *Server {
 
 func (server *Server) GetEcho() EchoServer {
 	return server.echo
+}
+
+func (server *Server) SetLogger(logger echo.Logger) {
+	server.echo.Logger = logger
+}
+
+func (server *Server) Logger() echo.Logger {
+	return server.echo.Logger
 }
 
 func (server *Server) GetMiddlewares() []Middleware {

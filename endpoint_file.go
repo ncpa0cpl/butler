@@ -112,13 +112,13 @@ func (e *FsEndpoint) ExecuteHandler(ctx echo.Context, request *Request) (retVal 
 
 	file, err := os.Open(fullFilepath)
 	if err != nil {
-		ctx.Logger().Error("failed to open file: ", fullFilepath)
+		request.Logger.Error("failed to open file: ", fullFilepath)
 		return Respond.InternalError()
 	}
 
 	stat, err := file.Stat()
 	if err != nil {
-		ctx.Logger().Error("failed to get file stat: ", fullFilepath)
+		request.Logger.Error("failed to get file stat: ", fullFilepath)
 		return Respond.InternalError()
 	}
 

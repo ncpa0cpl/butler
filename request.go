@@ -13,6 +13,7 @@ type Request struct {
 	Headers http.Header
 	Path    string
 	Data    map[string]any
+	Logger  RequestLogger
 
 	monitor       monitorRecorder
 	monitorRecord RecordBuilder
@@ -21,15 +22,17 @@ type Request struct {
 
 func NewRequest(ctx echo.Context, monitor monitorRecorder) *Request {
 	path := ctx.Request().URL.Path
+	method := ctx.Request().Method
 
 	req := &Request{
 		ctx:           ctx,
 		monitor:       monitor,
 		monitorRecord: monitor.CreateRecord(path),
 		Path:          path,
-		Method:        ctx.Request().Method,
+		Method:        method,
 		Data:          map[string]any{},
 		Headers:       ctx.Request().Header,
+		Logger:        newRequestLogger(method, path, ctx.Logger()),
 	}
 
 	return req
@@ -37,10 +40,6 @@ func NewRequest(ctx echo.Context, monitor monitorRecorder) *Request {
 
 func (r *Request) HttpRequest() *http.Request {
 	return r.ctx.Request()
-}
-
-func (r *Request) Logger() echo.Logger {
-	return r.ctx.Logger()
 }
 
 func (r *Request) GetCookie(name string) (*http.Cookie, error) {

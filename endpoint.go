@@ -65,13 +65,13 @@ func (e *Endpoint[T, B]) ExecuteHandler(ctx echo.Context, request *Request) (ret
 
 	body, err := e.parseBody(ctx)
 	if err != nil {
-		ctx.Logger().Error(err)
+		request.Logger.Error(err)
 		return Respond.BadRequest()
 	}
 
 	params, perr := e.bindParams(ctx)
 	if perr != nil {
-		ctx.Logger().Error(perr.ToString())
+		request.Logger.Error(perr.ToString())
 		return perr.Response()
 	}
 
