@@ -1,9 +1,14 @@
 package butler
 
-import "github.com/labstack/echo/v4/middleware"
+import (
+	"net/http"
+
+	echo "github.com/labstack/echo/v4"
+	"github.com/ncpa0cpl/butler/echo_middleware/cors"
+)
 
 type CorsSettings struct {
-	config middleware.CORSConfig
+	config cors.CORSConfig
 }
 
 // MaxAge determines the value of the Access-Control-Max-Age response header.
@@ -86,4 +91,22 @@ func (s *CorsSettings) AllowMethods(methods ...string) {
 // See also: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Credentials
 func (s *CorsSettings) AllowCredentials(allow bool) {
 	s.config.AllowCredentials = allow
+}
+
+// AllowOriginFunc is a custom function to validate the origin. It return true if allowed or false
+// otherwise. If an error is returned, it is returned by the handler. If this option is
+// set, AllowOrigins is ignored.
+//
+// Security: use extreme caution when handling the origin, and carefully
+// validate any logic. Remember that attackers may register hostile domain names.
+// See https://blog.portswigger.net/2016/10/exploiting-cors-misconfigurations-for.html
+//
+// Optional.
+func (s *CorsSettings) AllowOriginFunc(fn func(req *http.Request, origin string) (bool, error)) {
+	s.config.AllowOriginFunc = fn
+}
+
+// Skipper defines a function to skip middleware.
+func (s *CorsSettings) Skip(skipper func(c echo.Context) bool) {
+	s.config.Skipper = skipper
 }

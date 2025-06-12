@@ -7,7 +7,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	echo "github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/ncpa0cpl/butler/echo_middleware/cors"
 )
 
 type EchoServer interface {
@@ -105,7 +105,7 @@ func (server *Server) Monitor(usageMonitor UsageMonitor) {
 }
 
 func (server *Server) Listen() error {
-	server.echo.Use(middleware.CORSWithConfig(server.Cors.config))
+	server.echo.Use(cors.CORSWithConfig(server.Cors.config))
 
 	err := server.echo.Start(fmt.Sprintf(":%v", server.Port))
 	if err != nil {
