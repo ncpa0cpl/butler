@@ -5,6 +5,7 @@ import (
 	"os"
 
 	echo "github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 type EchoServer interface {
@@ -31,6 +32,7 @@ type EndpointInterface interface {
 }
 
 type Server struct {
+	Cors         *CorsSettings
 	Port         int
 	echo         *echo.Echo
 	endpoints    []EndpointInterface
@@ -45,6 +47,7 @@ func CreateServer() *Server {
 
 	return &Server{
 		Port:      80,
+		Cors:      &CorsSettings{},
 		echo:      e,
 		endpoints: []EndpointInterface{},
 	}
@@ -95,6 +98,8 @@ func (server *Server) Monitor(usageMonitor UsageMonitor) {
 }
 
 func (server *Server) Listen() error {
+	server.echo.Use(middleware.CORSWithConfig(server.Cors.config))
+
 	err := server.echo.Start(fmt.Sprintf(":%v", server.Port))
 	if err != nil {
 		server.echo.Logger.Error(err)
