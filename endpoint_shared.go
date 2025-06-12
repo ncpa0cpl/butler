@@ -1,6 +1,10 @@
 package butler
 
 import (
+	"fmt"
+	"net/http"
+	"runtime"
+
 	echo "github.com/labstack/echo/v4"
 )
 
@@ -44,6 +48,33 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 	handler := func(ctx echo.Context) error {
 		request := NewRequest(ctx, monitor)
 		defer request.completeMonitor()
+
+		defer func() {
+			if r := recover(); r != nil {
+				if r == http.ErrAbortHandler {
+					panic(r)
+				}
+				err, ok := r.(error)
+				if !ok {
+					err = fmt.Errorf("%v", r)
+				}
+				var stack []byte
+				var length int
+
+				stack = make([]byte, Units.MB)
+				length = runtime.Stack(stack, true)
+				stack = stack[:length]
+
+				msg := fmt.Sprintf("[PANIC RECOVERY] %v %s", err, stack[:length])
+				request.Logger.Fatal(msg)
+
+				if err != nil {
+					ctx.Error(err)
+				} else {
+					ctx.NoContent(500)
+				}
+			}
+		}()
 
 		if len(authHandlers) > 0 {
 			request.monitorStart(MonitorStep.Auth, "")

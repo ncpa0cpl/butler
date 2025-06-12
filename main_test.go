@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -655,6 +656,45 @@ loop:
 	}
 
 	assert.Equal(2, i)
+}
+
+type MockStdoutWriter struct {
+	logs []string
+}
+
+func (w *MockStdoutWriter) Write(b []byte) (int, error) {
+	w.logs = append(w.logs, string(b))
+	return len(b), nil
+}
+
+func TestPanicRecovery(t *testing.T) {
+	assert := assert.New(t)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	output := MockStdoutWriter{}
+	server.Logger().SetOutput(&output)
+
+	books := &f.BasicEndpoint[f.NoParams]{
+		Method: "GET",
+		Path:   "/api/pnic",
+		Handler: func(request *f.Request, params f.NoParams) *f.Response {
+			panic(errors.New("handler encountered unrecoverable error"))
+		},
+	}
+
+	server.Add(books)
+
+	go server.Listen()
+	defer server.Close()
+
+	resp, err := http.Get("http://localhost:8080/api/pnic")
+	noErr(err)
+	assert.Equal(500, resp.StatusCode)
+
+	assert.Equal(3, len(output.logs))
+	assert.Contains(output.logs[2], "FATAL: GET /api/pnic - [PANIC RECOVERY] handler encountered unrecoverable error")
 }
 
 func TestRestEndpointHandling(t *testing.T) {

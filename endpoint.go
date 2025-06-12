@@ -53,12 +53,6 @@ func (e *Endpoint[T, B]) GetMiddlewares() []Middleware {
 }
 
 func (e *Endpoint[T, B]) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
-	defer func() {
-		if r := recover(); r != nil {
-			retVal = Respond.InternalError()
-		}
-	}()
-
 	if e.bindParams == nil {
 		e.bindParams = CreateSearchParamsBinder[T]()
 	}

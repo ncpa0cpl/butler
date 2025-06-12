@@ -97,12 +97,6 @@ func (e *FsEndpoint) Register(parent EndpointParent) []EndpointInterface {
 }
 
 func (e *FsEndpoint) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
-	defer func() {
-		if r := recover(); r != nil {
-			retVal = Respond.InternalError()
-		}
-	}()
-
 	filepath := ctx.Param("*")
 	fullFilepath := path.Join(e.Dir, filepath)
 
