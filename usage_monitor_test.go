@@ -70,7 +70,10 @@ func TestUsageMonitor(t *testing.T) {
 	noErr(err)
 	assert.Equal(200, resp.StatusCode)
 
-	assert.Equal(1, len(monitor.records))
+	waitUntil(func() bool {
+		return len(monitor.records) == 1
+	})
+
 	assert.Equal("/api/books", monitor.records[0].UrlPath)
 	assert.NotNil(monitor.records[0].Start)
 	assert.NotNil(monitor.records[0].End)
