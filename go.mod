@@ -6,7 +6,8 @@ require (
 	github.com/andybalholm/brotli v1.1.1
 	github.com/carlmjohnson/requests v0.24.3
 	github.com/gabriel-vasile/mimetype v1.4.9
-	github.com/labstack/echo v3.3.10+incompatible
+	github.com/gorilla/sessions v1.4.0
+	github.com/labstack/echo-contrib v0.17.4
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/labstack/gommon v0.4.2
 	github.com/stretchr/testify v1.10.0
@@ -14,7 +15,8 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
+	github.com/gorilla/context v1.1.2 // indirect
+	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

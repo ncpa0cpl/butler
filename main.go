@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gorilla/sessions"
+	"github.com/labstack/echo-contrib/session"
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -63,6 +65,11 @@ func (server *Server) SetLogger(logger echo.Logger) {
 
 func (server *Server) Logger() echo.Logger {
 	return server.echo.Logger
+}
+
+func (server *Server) SetSessionStore(store sessions.Store) {
+	md := session.Middleware(store)
+	server.echo.Use(md)
 }
 
 func (server *Server) GetMiddlewares() []Middleware {

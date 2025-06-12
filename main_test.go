@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
+	"github.com/gorilla/sessions"
 	f "github.com/ncpa0cpl/butler"
 	"github.com/stretchr/testify/assert"
 )
@@ -695,6 +696,63 @@ func TestPanicRecovery(t *testing.T) {
 
 	assert.Equal(3, len(output.logs))
 	assert.Contains(output.logs[2], "FATAL: GET /api/pnic - [PANIC RECOVERY] handler encountered unrecoverable error")
+}
+
+func TestSessions(t *testing.T) {
+	assert := assert.New(t)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	server.SetSessionStore(sessions.NewCookieStore([]byte("secret")))
+
+	books := &f.BasicEndpoint[f.NoParams]{
+		Method: "GET",
+		Path:   "/sessiontest",
+		CachePolicy: &f.HttpCachePolicy{
+			MaxAge: time.Hour,
+		},
+		Handler: func(request *f.Request, params f.NoParams) *f.Response {
+			s, _ := request.Session()
+			retValue := s.Values["foo"]
+
+			s.Values["foo"] = "bar"
+
+			if v, ok := retValue.(string); ok {
+				return f.Respond.Ok().Text(v)
+			}
+
+			return f.Respond.Ok().Text("")
+		},
+	}
+
+	server.Add(books)
+
+	go server.Listen()
+	defer server.Close()
+
+	client := http.Client{}
+
+	req, err := http.NewRequest("GET", "http://localhost:8080/sessiontest", nil)
+	noErr(err)
+	resp, err := client.Do(req)
+	noErr(err)
+	assert.Equal(200, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	noErr(err)
+	assert.Equal("", string(body))
+
+	req, err = http.NewRequest("GET", "http://localhost:8080/sessiontest", nil)
+	for _, cookie := range resp.Cookies() {
+		req.AddCookie(cookie)
+	}
+	noErr(err)
+	resp, err = client.Do(req)
+	noErr(err)
+	assert.Equal(200, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	noErr(err)
+	assert.Equal("bar", string(body))
 }
 
 func TestRestEndpointHandling(t *testing.T) {

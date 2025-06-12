@@ -237,6 +237,13 @@ func pathJoin(a, b string) string {
 	return strings.TrimRight(a, "/") + "/" + strings.TrimLeft(b, "/")
 }
 
+func firstOr[T any](slice []T, defaultV T) T {
+	if len(slice) > 0 {
+		return slice[0]
+	}
+	return defaultV
+}
+
 type mimet struct{}
 
 var Mime mimet

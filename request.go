@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/gorilla/sessions"
+	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 )
 
@@ -15,9 +17,10 @@ type Request struct {
 	Data    map[string]any
 	Logger  RequestLogger
 
-	monitor       monitorRecorder
-	monitorRecord RecordBuilder
-	ctx           echo.Context
+	monitor          monitorRecorder
+	monitorRecord    RecordBuilder
+	ctx              echo.Context
+	accessedSessions []*sessions.Session
 }
 
 func NewRequest(ctx echo.Context, monitor monitorRecorder) *Request {
@@ -36,6 +39,22 @@ func NewRequest(ctx echo.Context, monitor monitorRecorder) *Request {
 	}
 
 	return req
+}
+
+// Get the session, requires a session store to be configured.
+// Session will be automatically saved before sending the response
+//
+// Default session name: "session"
+func (r *Request) Session(sessionName ...string) (*sessions.Session, error) {
+	name := firstOr(sessionName, "session")
+	s, err := session.Get(name, r.ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	r.accessedSessions = append(r.accessedSessions, s)
+
+	return s, err
 }
 
 func (r *Request) HttpRequest() *http.Request {
@@ -76,4 +95,13 @@ func (r *Request) monitorEnd(step, name string) {
 
 func (r *Request) completeMonitor() {
 	r.monitor.FinalizeRecord(r.monitorRecord)
+}
+
+func (r *Request) saveSessions() {
+	for _, s := range r.accessedSessions {
+		err := s.Save(r.ctx.Request(), r.ctx.Response())
+		if err != nil {
+			r.Logger.Error("failed to save the session: ", err)
+		}
+	}
 }

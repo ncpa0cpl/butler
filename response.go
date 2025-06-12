@@ -326,6 +326,8 @@ func (resp *Response) send(request *Request) error {
 	ctx := request.EchoContext()
 
 	if resp.customHandler != nil {
+		request.saveSessions()
+
 		request.monitorStart(MonitorStep.Custom, "")
 		err := resp.customHandler(ctx)
 		request.monitorEnd(MonitorStep.Custom, "")
@@ -350,6 +352,7 @@ func (resp *Response) send(request *Request) error {
 	}
 
 	resp.Headers.CopyInto(ctx.Response().Header())
+	request.saveSessions()
 
 	if resp.streamWriter != nil {
 		return resp.streamFromWriter(ctx, resp.streamWriter)

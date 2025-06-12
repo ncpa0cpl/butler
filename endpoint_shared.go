@@ -68,6 +68,8 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 				msg := fmt.Sprintf("[PANIC RECOVERY] %v %s", err, stack[:length])
 				request.Logger.Fatal(msg)
 
+				request.saveSessions()
+
 				if err != nil {
 					ctx.Error(err)
 				} else {
@@ -104,7 +106,8 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 			if err != nil {
 				request.Logger.Errorf("middleware %s request handler returned an error", md.Name)
-				return err
+				response = Respond.InternalError()
+				return response.send(request)
 			}
 
 			if response != nil {
@@ -133,13 +136,15 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 			if err != nil {
 				request.Logger.Errorf("middleware %s response handler returned an error", md.Name)
-				return err
+				response = Respond.InternalError()
+				return response.send(request)
 			}
 		}
 
 		if response == nil {
 			request.Logger.Errorf("endpoint handler did not return a response [path=%s]", fullpath)
-			return ctx.NoContent(500)
+			response = Respond.InternalError()
+			return response.send(request)
 		}
 
 		if response.customHandler != nil {
