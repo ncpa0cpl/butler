@@ -41,7 +41,7 @@ type Server struct {
 func CreateServer() *Server {
 	e := echo.New()
 
-	e.Logger = NewButlerLogger("butler", os.Stdout)
+	e.Logger = NewButlerLogger("", os.Stdout)
 
 	return &Server{
 		Port:      80,

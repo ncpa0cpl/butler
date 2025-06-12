@@ -102,17 +102,23 @@ func (l RequestLogger) Panicf(msg string, args ...any) {
 }
 
 type ButlerLogger struct {
-	writer io.Writer
-	prefix string
-	lvl    log.Lvl
+	writer     io.Writer
+	prefix     string
+	lvl        log.Lvl
+	timestamps bool
 }
 
 func NewButlerLogger(name string, writer io.Writer) *ButlerLogger {
 	return &ButlerLogger{
-		writer: writer,
-		prefix: name,
-		lvl:    LogLevel.Warn,
+		writer:     writer,
+		prefix:     name,
+		lvl:        LogLevel.Warn,
+		timestamps: true,
 	}
+}
+
+func (bl *ButlerLogger) PrefixWithTimestamps(timestamps bool) {
+	bl.timestamps = timestamps
 }
 
 func (bl *ButlerLogger) Output() io.Writer {
@@ -150,7 +156,7 @@ func (bl *ButlerLogger) Printf(format string, args ...any) {
 }
 
 func (bl *ButlerLogger) Printj(j log.JSON) {
-	bl.log(LogLevel.Print, "type:json", j)
+	bl.log(LogLevel.Print, "json", j)
 }
 
 func (bl *ButlerLogger) Debug(i ...any) {
@@ -162,7 +168,7 @@ func (bl *ButlerLogger) Debugf(format string, args ...any) {
 }
 
 func (bl *ButlerLogger) Debugj(j log.JSON) {
-	bl.log(LogLevel.Debug, "type:json", j)
+	bl.log(LogLevel.Debug, "json", j)
 }
 
 func (bl *ButlerLogger) Info(i ...any) {
@@ -174,7 +180,7 @@ func (bl *ButlerLogger) Infof(format string, args ...any) {
 }
 
 func (bl *ButlerLogger) Infoj(j log.JSON) {
-	bl.log(LogLevel.Info, "type:json", j)
+	bl.log(LogLevel.Info, "json", j)
 }
 
 func (bl *ButlerLogger) Warn(i ...any) {
@@ -186,7 +192,7 @@ func (bl *ButlerLogger) Warnf(format string, args ...any) {
 }
 
 func (bl *ButlerLogger) Warnj(j log.JSON) {
-	bl.log(LogLevel.Warn, "type:json", j)
+	bl.log(LogLevel.Warn, "json", j)
 }
 
 func (bl *ButlerLogger) Error(i ...any) {
@@ -198,7 +204,7 @@ func (bl *ButlerLogger) Errorf(format string, args ...any) {
 }
 
 func (bl *ButlerLogger) Errorj(j log.JSON) {
-	bl.log(LogLevel.Error, "type:json", j)
+	bl.log(LogLevel.Error, "json", j)
 }
 
 func (bl *ButlerLogger) Fatal(i ...any) {
@@ -206,7 +212,7 @@ func (bl *ButlerLogger) Fatal(i ...any) {
 }
 
 func (bl *ButlerLogger) Fatalj(j log.JSON) {
-	bl.log(LogLevel.Fatal, "type:json", j)
+	bl.log(LogLevel.Fatal, "json", j)
 }
 
 func (bl *ButlerLogger) Fatalf(format string, args ...any) {
@@ -218,7 +224,7 @@ func (bl *ButlerLogger) Panic(i ...any) {
 }
 
 func (bl *ButlerLogger) Panicj(j log.JSON) {
-	bl.log(LogLevel.Panic, "type:json", j)
+	bl.log(LogLevel.Panic, "json", j)
 }
 
 func (bl *ButlerLogger) Panicf(format string, args ...any) {
@@ -231,26 +237,30 @@ func (bl *ButlerLogger) log(level log.Lvl, format string, args ...any) {
 	}
 
 	var message string
+
+	if bl.timestamps {
+		message = time.Now().UTC().Format("2006-01-02T15:04:05.999Z07:00") + " "
+	}
+
+	if bl.prefix != "" {
+		message += bl.prefix + " "
+	}
+
+	message += levelString(level)
+
 	if format == "" {
-		message = fmt.Sprint(args...)
+		message += fmt.Sprint(args...)
 	} else if format == "json" {
 		b, err := json.Marshal(args[0])
 		if err != nil {
 			panic(err)
 		}
-		message = string(b)
+		message += string(b)
 	} else {
-		message = fmt.Sprintf(format, args...)
+		message += fmt.Sprintf(format, args...)
 	}
 
-	t := time.Now().UTC()
-	bl.writer.Write([]byte(
-		t.Format("2006-01-02T15:04:05.999Z07:00") +
-			" " +
-			levelString(level) +
-			message +
-			"\n",
-	))
+	bl.writer.Write([]byte(message + "\n"))
 }
 
 func levelString(level log.Lvl) string {
