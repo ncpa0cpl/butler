@@ -71,7 +71,7 @@ func (umr *usageMonitorRecorder) FinalizeRecord(r RecordBuilder) {
 	now := time.Now()
 	rec := r.GetRecord()
 	rec.End = &now
-	umr.usageMonitor.Record(rec)
+	go umr.usageMonitor.Record(rec)
 }
 
 type usageMonitorRecord struct {

@@ -43,6 +43,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 	handler := func(ctx echo.Context) error {
 		request := NewRequest(ctx, monitor)
+		defer request.completeMonitor()
 
 		if len(authHandlers) > 0 {
 			request.monitorStart(MonitorStep.Auth, "")

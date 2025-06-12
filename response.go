@@ -324,7 +324,6 @@ func (resp *Response) StreamWriter(handler func(HttpWriter) error) *Response {
 
 func (resp *Response) send(request *Request) error {
 	ctx := request.EchoContext()
-	defer request.completeMonitor()
 
 	if resp.customHandler != nil {
 		request.monitorStart(MonitorStep.Custom, "")
