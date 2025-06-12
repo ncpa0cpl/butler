@@ -1,7 +1,6 @@
 package butler_test
 
 import (
-	"net/http"
 	"testing"
 	"time"
 
@@ -61,13 +60,7 @@ func TestUsageMonitor(t *testing.T) {
 	go server.Listen()
 	defer server.Close()
 
-	client := &http.Client{}
-
-	req, err := http.NewRequest("GET", "http://localhost:8080/api/books", nil)
-	noErr(err)
-	req.Header.Set("accept-encoding", "gzip")
-	resp, err := client.Do(req)
-	noErr(err)
+	_, resp := request("GET", "http://localhost:8080/api/books", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 
 	waitUntil(func() bool {

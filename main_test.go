@@ -55,38 +55,23 @@ func TestGetEndpointWithQueryParams(t *testing.T) {
 	go server.Listen()
 	defer server.Close()
 
-	resp, err := http.Get("http://localhost:8080/books")
-	noErr(err)
+	body, resp := request("GET", "http://localhost:8080/books", nil)
 	assert.Equal(200, resp.StatusCode)
-
 	cp := resp.Header.Get("Content-Type")
 	assert.Equal("application/json; charset=utf-8", cp)
-
 	cacheControl := resp.Header.Get("Cache-Control")
 	assert.Equal("public, max-age=3600", cacheControl)
-
 	etag := resp.Header.Get("ETag")
 	assert.NotZero(etag)
-
-	body, err := io.ReadAll(resp.Body)
-	noErr(err)
-
 	assert.Equal("[{\"Title\":\"\"},{\"Title\":\"0\"},{\"Title\":\"false\"}]", string(body))
 
-	resp, err = http.Get("http://localhost:8080/books?search=fooqux&limit=2&includedel=true")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/books?search=fooqux&limit=2&includedel=true", nil)
 	assert.Equal(200, resp.StatusCode)
-
 	cp = resp.Header.Get("Content-Type")
 	assert.Equal("application/json; charset=utf-8", cp)
-
-	body, err = io.ReadAll(resp.Body)
-	noErr(err)
-
 	assert.Equal("[{\"Title\":\"fooqux\"},{\"Title\":\"2\"},{\"Title\":\"true\"}]", string(body))
 
-	resp, err = http.Get("http://localhost:8080/books?search=fooqux&limit=a&includedel=true")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/books?search=fooqux&limit=a&includedel=true", nil)
 	assert.Equal(400, resp.StatusCode)
 }
 
@@ -127,20 +112,14 @@ func TestGetEndpointWithUrlParams(t *testing.T) {
 	go server.Listen()
 	defer server.Close()
 
-	resp, err := http.Get("http://localhost:8080/books/B1Y332O/5")
-	noErr(err)
+	body, resp := request("GET", "http://localhost:8080/books/B1Y332O/5", nil)
 	assert.Equal(200, resp.StatusCode)
 
 	cp := resp.Header.Get("Content-Type")
 	assert.Equal("application/json; charset=utf-8", cp)
-
-	body, err := io.ReadAll(resp.Body)
-	noErr(err)
-
 	assert.Equal("[{\"Title\":\"B1Y332O\"},{\"Title\":\"5\"}]", string(body))
 
-	resp, err = http.Get("http://localhost:8080/books/B1Y332O/A")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/books/B1Y332O/A", nil)
 	assert.Equal(400, resp.StatusCode)
 }
 
@@ -172,14 +151,8 @@ func TestGroupedEndpoints(t *testing.T) {
 	go server.Listen()
 	defer server.Close()
 
-	postBody, _ := json.Marshal(&LoopbackPayload{Value: "return this back"})
-	resp, err := http.Post("http://localhost:8080/api/loopback", "application/json", bytes.NewBuffer(postBody))
-	noErr(err)
+	body, resp := request("POST", "http://localhost:8080/api/loopback", &LoopbackPayload{Value: "return this back"})
 	assert.Equal(200, resp.StatusCode)
-
-	body, err := io.ReadAll(resp.Body)
-	noErr(err)
-
 	assert.Equal("{\"Value\":\"return this back\"}", string(body))
 }
 
@@ -221,14 +194,8 @@ func TestNestedGroups(t *testing.T) {
 	go server.Listen()
 	defer server.Close()
 
-	postBody, _ := json.Marshal(&LoopbackPayload{Value: "return this back"})
-	resp, err := http.Post("http://localhost:8080/group3/group2/group1/loopback", "application/json", bytes.NewBuffer(postBody))
-	noErr(err)
+	body, resp := request("POST", "http://localhost:8080/group3/group2/group1/loopback", &LoopbackPayload{Value: "return this back"})
 	assert.Equal(200, resp.StatusCode)
-
-	body, err := io.ReadAll(resp.Body)
-	noErr(err)
-
 	assert.Equal("{\"Value\":\"return this back\"}", string(body))
 }
 
@@ -271,17 +238,8 @@ func TestEtagCaching(t *testing.T) {
 	etag := resp.Header.Get("ETag")
 	assert.NotZero(etag)
 
-	client := &http.Client{}
-	request, err := http.NewRequest("GET", "http://localhost:8080/books", nil)
-	noErr(err)
-	request.Header.Set("If-None-Match", etag)
-	resp, err = client.Do(request)
-	noErr(err)
-
+	body, resp := request("GET", "http://localhost:8080/books", nil, header{"If-None-Match", etag})
 	assert.Equal(304, resp.StatusCode)
-
-	body, err := io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal(0, len(body))
 }
 
@@ -314,18 +272,9 @@ func TestAutoEncoding(t *testing.T) {
 	go server.Listen()
 	defer server.Close()
 
-	client := &http.Client{}
-	request, err := http.NewRequest("GET", "http://localhost:8080/books", nil)
-	request.Header.Add("Accept-Encoding", "br")
-	noErr(err)
-	resp, err := client.Do(request)
-	noErr(err)
+	body, resp := request("GET", "http://localhost:8080/books", nil, header{"Accept-Encoding", "br"})
 	assert.Equal(200, resp.StatusCode)
-
 	assert.Equal("br", resp.Header.Get("Content-Encoding"))
-
-	body, err := io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal(40, len(body))
 
 	reader := brotli.NewReader(bytes.NewReader(body))
@@ -377,91 +326,47 @@ func TestFsEndpoint(t *testing.T) {
 	go server.Listen()
 	defer server.Close()
 
-	client := &http.Client{}
-
-	request, err := http.NewRequest("GET", "http://localhost:8080/static/script.js", nil)
-	request.Header.Set("accept-encoding", "gzip")
-	noErr(err)
-	resp, err := client.Do(request)
-	noErr(err)
-
+	body, resp := request("GET", "http://localhost:8080/static/script.js", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal("gzip", resp.Header.Get("content-encoding"))
 	assert.Equal("text/javascript", resp.Header.Get("content-type"))
 	assert.Equal("", resp.Header.Get("content-range"))
-
-	body, err := io.ReadAll(resp.Body)
 	assert.Equal([]byte(JS_SAMPLE), decodeGzip(body))
 
-	request, err = http.NewRequest("GET", "http://localhost:8080/static/styles.css", nil)
-	request.Header.Set("accept-encoding", "gzip")
-	noErr(err)
-	resp, err = client.Do(request)
-	noErr(err)
-
+	body, resp = request("GET", "http://localhost:8080/static/styles.css", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal("gzip", resp.Header.Get("content-encoding"))
 	assert.Equal("text/css", resp.Header.Get("content-type"))
 	assert.Equal("", resp.Header.Get("content-range"))
-
-	body, err = io.ReadAll(resp.Body)
 	assert.Equal([]byte(CSS_SAMPLE), decodeGzip(body))
 
-	request, err = http.NewRequest("GET", "http://localhost:8080/static/index.html", nil)
-	request.Header.Set("accept-encoding", "gzip")
-	noErr(err)
-	resp, err = client.Do(request)
-	noErr(err)
-
+	body, resp = request("GET", "http://localhost:8080/static/index.html", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal("gzip", resp.Header.Get("content-encoding"))
 	assert.Equal("text/html", resp.Header.Get("content-type"))
 	assert.Equal("", resp.Header.Get("content-range"))
-
-	body, err = io.ReadAll(resp.Body)
 	assert.Equal([]byte(HTML_SAMPLE), decodeGzip(body))
 
-	request, err = http.NewRequest("GET", "http://localhost:8080/static/data.json", nil)
-	request.Header.Set("accept-encoding", "gzip")
-	noErr(err)
-	resp, err = client.Do(request)
-	noErr(err)
-
+	body, resp = request("GET", "http://localhost:8080/static/data.json", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal("gzip", resp.Header.Get("content-encoding"))
 	assert.Equal("application/json", resp.Header.Get("content-type"))
 	assert.Equal("", resp.Header.Get("content-range"))
-
-	body, err = io.ReadAll(resp.Body)
 	assert.Equal([]byte(JSON_SAMPLE), decodeGzip(body))
 
-	request, err = http.NewRequest("GET", "http://localhost:8080/static/small_vid.mp4", nil)
-	request.Header.Set("accept-encoding", "gzip")
-	noErr(err)
-	resp, err = client.Do(request)
-	noErr(err)
-
+	body, resp = request("GET", "http://localhost:8080/static/small_vid.mp4", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal("", resp.Header.Get("content-encoding"))
 	assert.Equal("video/mp4", resp.Header.Get("content-type"))
 	assert.Equal("", resp.Header.Get("content-range"))
-
-	body, err = io.ReadAll(resp.Body)
 	assert.Equal(262208, len(body))
 
-	request, err = http.NewRequest("GET", "http://localhost:8080/static/big_vid.mp4", nil)
-	request.Header.Set("accept-encoding", "gzip")
-	noErr(err)
-	resp, err = client.Do(request)
-	noErr(err)
-
+	body, resp = request("GET", "http://localhost:8080/static/big_vid.mp4", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal("", resp.Header.Get("content-encoding"))
 	assert.Equal("video/mp4", resp.Header.Get("content-type"))
 	assert.Equal("bytes 0-5242943/5242944", resp.Header.Get("content-range"))
 	assert.Equal("5242944", resp.Header.Get("content-length"))
-
-	body, err = io.ReadAll(resp.Body)
 	assert.Equal(5242944, len(body))
 }
 
@@ -490,20 +395,11 @@ func TestStreamEndpoint(t *testing.T) {
 	go server.Listen()
 	defer server.Close()
 
-	client := &http.Client{}
-
 	// first 32 bytes (below chunk size)
-	request, err := http.NewRequest("GET", "http://localhost:8080/stream", nil)
-	noErr(err)
-	request.Header.Set("Range", "bytes=0-31")
-	resp, err := client.Do(request)
-	noErr(err)
-
+	body, resp := request("GET", "http://localhost:8080/stream", nil, header{"Range", "bytes=0-31"})
 	assert.Equal(206, resp.StatusCode)
 	assert.Equal("bytes 0-31/185", resp.Header.Get("content-range"))
 	assert.Equal("32", resp.Header.Get("content-length"))
-
-	body, err := io.ReadAll(resp.Body)
 	assert.Equal(
 		[]byte{
 			76, 111, 114, 101, 109, 32, 105, 112, 115, 117, 109, 32, 100, 111, 108, 111,
@@ -513,67 +409,40 @@ func TestStreamEndpoint(t *testing.T) {
 	)
 
 	// slice of bytes from the middle (above chunk size)
-	request, err = http.NewRequest("GET", "http://localhost:8080/stream", nil)
-	noErr(err)
-	request.Header.Set("Range", "bytes=32-182")
-	resp, err = client.Do(request)
-	noErr(err)
-
+	body, resp = request("GET", "http://localhost:8080/stream", nil, header{"Range", "bytes=32-182"})
 	assert.Equal(206, resp.StatusCode)
 	assert.Equal("bytes 32-182/185", resp.Header.Get("content-range"))
 	assert.Equal("151", resp.Header.Get("content-length"))
-
-	body, err = io.ReadAll(resp.Body)
 	assert.Equal(
 		TEST_FILE_DATA[32:183],
 		body,
 	)
 
 	// last 15 bytes (below chunk size)
-	request, err = http.NewRequest("GET", "http://localhost:8080/stream", nil)
-	noErr(err)
-	request.Header.Set("Range", "bytes=170-184")
-	resp, err = client.Do(request)
-	noErr(err)
-
+	body, resp = request("GET", "http://localhost:8080/stream", nil, header{"Range", "bytes=170-184"})
 	assert.Equal(206, resp.StatusCode)
 	assert.Equal("bytes 170-184/185", resp.Header.Get("content-range"))
 	assert.Equal("15", resp.Header.Get("content-length"))
-
-	body, err = io.ReadAll(resp.Body)
 	assert.Equal(
 		TEST_FILE_DATA[170:],
 		body,
 	)
 
 	// last 89 bytes (above chunk size)
-	request, err = http.NewRequest("GET", "http://localhost:8080/stream", nil)
-	noErr(err)
-	request.Header.Set("Range", "bytes=96-")
-	resp, err = client.Do(request)
-	noErr(err)
-
+	body, resp = request("GET", "http://localhost:8080/stream", nil, header{"Range", "bytes=96-"})
 	assert.Equal(206, resp.StatusCode)
 	assert.Equal("bytes 96-184/185", resp.Header.Get("content-range"))
 	assert.Equal("89", resp.Header.Get("content-length"))
-
-	body, err = io.ReadAll(resp.Body)
 	assert.Equal(
 		TEST_FILE_DATA[96:],
 		body,
 	)
 
 	// whole thing (no Range header)
-	request, err = http.NewRequest("GET", "http://localhost:8080/stream", nil)
-	noErr(err)
-	resp, err = client.Do(request)
-	noErr(err)
-
+	body, resp = request("GET", "http://localhost:8080/stream", nil)
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal("bytes 0-184/185", resp.Header.Get("content-range"))
 	assert.Equal("185", resp.Header.Get("content-length"))
-
-	body, err = io.ReadAll(resp.Body)
 	assert.Equal(
 		TEST_FILE_DATA,
 		body,
@@ -612,22 +481,17 @@ func TestWriterStreaming(t *testing.T) {
 	client := &http.Client{}
 
 	// check if the full body makes it to the client
-	request, err := http.NewRequest("GET", "http://localhost:8080/streamhtml", nil)
-	noErr(err)
-	resp, err := client.Do(request)
-	noErr(err)
-
+	body, resp := request("GET", "http://localhost:8080/streamhtml", nil)
 	assert.Equal(200, resp.StatusCode)
-
-	body, err := io.ReadAll(resp.Body)
 	assert.Equal(
 		"<div>response</div>\n<script hx-swap-oob=\"true\">console.log('hello')</script>\n<script hx-swap-oob=\"true\">console.log('world')</script>\n",
 		string(body),
 	)
 
 	// check if each write is flushed separately
-	request, err = http.NewRequest("GET", "http://localhost:8080/streamhtml", nil)
+	request, err := http.NewRequest("GET", "http://localhost:8080/streamhtml", nil)
 	noErr(err)
+	request.Close = true
 	resp, err = client.Do(request)
 	noErr(err)
 
@@ -690,10 +554,8 @@ func TestPanicRecovery(t *testing.T) {
 	go server.Listen()
 	defer server.Close()
 
-	resp, err := http.Get("http://localhost:8080/api/pnic")
-	noErr(err)
+	_, resp := request("GET", "http://localhost:8080/api/pnic", nil)
 	assert.Equal(500, resp.StatusCode)
-
 	assert.Equal(3, len(output.logs))
 	assert.Contains(output.logs[2], "FATAL: GET /api/pnic - [PANIC RECOVERY] handler encountered unrecoverable error")
 }
@@ -733,16 +595,12 @@ func TestSessions(t *testing.T) {
 
 	client := http.Client{}
 
-	req, err := http.NewRequest("GET", "http://localhost:8080/sessiontest", nil)
-	noErr(err)
-	resp, err := client.Do(req)
-	noErr(err)
+	body, resp := request("GET", "http://localhost:8080/sessiontest", nil)
 	assert.Equal(200, resp.StatusCode)
-	body, err := io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal("", string(body))
 
-	req, err = http.NewRequest("GET", "http://localhost:8080/sessiontest", nil)
+	req, err := http.NewRequest("GET", "http://localhost:8080/sessiontest", nil)
+	req.Close = true
 	for _, cookie := range resp.Cookies() {
 		req.AddCookie(cookie)
 	}
@@ -772,117 +630,65 @@ func TestRestEndpointHandling(t *testing.T) {
 	go server.Listen()
 	defer server.Close()
 
-	client := &http.Client{}
-
-	resp, err := http.Get("http://localhost:8080/books")
-	noErr(err)
+	body, resp := request("GET", "http://localhost:8080/books", nil)
 	assert.Equal(200, resp.StatusCode)
-	body, err := io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal("[]", string(body))
 
-	postBody, _ := json.Marshal(&BookResource{"1", "Harry Potter", 100})
-	resp, err = http.Post("http://localhost:8080/books", "application/json", bytes.NewBuffer(postBody))
-	noErr(err)
+	body, resp = request("POST", "http://localhost:8080/books", &BookResource{"1", "Harry Potter", 100})
 	assert.Equal(201, resp.StatusCode)
-	body, err = io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal("{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100}", string(body))
 
-	resp, err = http.Get("http://localhost:8080/books")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/books", nil)
 	assert.Equal(200, resp.StatusCode)
-	body, err = io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal("[{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100}]", string(body))
 
-	postBody, _ = json.Marshal(&BookResource{"2", "It", 543})
-	resp, err = http.Post("http://localhost:8080/books", "application/json", bytes.NewBuffer(postBody))
-	noErr(err)
+	body, resp = request("POST", "http://localhost:8080/books", &BookResource{"2", "It", 543})
 	assert.Equal(201, resp.StatusCode)
-	body, err = io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal("{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}", string(body))
 
-	resp, err = http.Get("http://localhost:8080/books")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/books", nil)
 	assert.Equal(200, resp.StatusCode)
-	body, err = io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal("[{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100},{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}]", string(body))
 
-	resp, err = http.Get("http://localhost:8080/books?filter=Harry")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/books?filter=Harry", nil)
 	assert.Equal(200, resp.StatusCode)
-	body, err = io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal("[{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100}]", string(body))
 
-	resp, err = http.Get("http://localhost:8080/books?filter=foobar")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/books?filter=foobar", nil)
 	assert.Equal(200, resp.StatusCode)
-	body, err = io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal("[]", string(body))
 
-	resp, err = http.Get("http://localhost:8080/books/1")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/books/1", nil)
 	assert.Equal(200, resp.StatusCode)
-	body, err = io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal("{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":100}", string(body))
 
-	resp, err = http.Get("http://localhost:8080/books/2")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/books/2", nil)
 	assert.Equal(200, resp.StatusCode)
-	body, err = io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal("{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}", string(body))
 
-	resp, err = http.Get("http://localhost:8080/books/3")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/books/3", nil)
 	assert.Equal(404, resp.StatusCode)
 
-	postBody, _ = json.Marshal(&BookResource{"1", "Harry Potter", 1001})
-	req, err := http.NewRequest("PUT", "http://localhost:8080/books/1", bytes.NewBuffer(postBody))
-	noErr(err)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err = client.Do(req)
-	noErr(err)
+	body, resp = request("PUT", "http://localhost:8080/books/1", &BookResource{"1", "Harry Potter", 1001})
 	assert.Equal(200, resp.StatusCode)
-	body, err = io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal("{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":1001}", string(body))
 
-	resp, err = http.Get("http://localhost:8080/books")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/books", nil)
 	assert.Equal(200, resp.StatusCode)
-	body, err = io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal("[{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":1001},{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}]", string(body))
 
-	resp, err = http.Get("http://localhost:8080/books/1")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/books/1", nil)
 	assert.Equal(200, resp.StatusCode)
-	body, err = io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal("{\"ID\":\"1\",\"Title\":\"Harry Potter\",\"Pages\":1001}", string(body))
 
-	req, err = http.NewRequest("DELETE", "http://localhost:8080/books/1", bytes.NewBuffer([]byte{}))
-	noErr(err)
-	resp, err = client.Do(req)
-	noErr(err)
+	body, resp = request("DELETE", "http://localhost:8080/books/1", nil)
 	assert.Equal(200, resp.StatusCode)
 
-	resp, err = http.Get("http://localhost:8080/books")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/books", nil)
 	assert.Equal(200, resp.StatusCode)
-	body, err = io.ReadAll(resp.Body)
-	noErr(err)
 	assert.Equal("[{\"ID\":\"2\",\"Title\":\"It\",\"Pages\":543}]", string(body))
 
-	resp, err = http.Get("http://localhost:8080/books/1")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/books/1", nil)
 	assert.Equal(404, resp.StatusCode)
 }
 
@@ -917,30 +723,20 @@ func TestProxyResponse(t *testing.T) {
 	go server.Listen()
 	defer server.Close()
 
-	resp, err := http.Get("http://localhost:8080/shouldfail")
-	noErr(err)
+	body, resp := request("GET", "http://localhost:8080/shouldfail", nil)
 	assert.Equal(404, resp.StatusCode)
 
-	resp, err = http.Get("http://localhost:8080/proxytoswapi")
-	noErr(err)
+	body, resp = request("GET", "http://localhost:8080/proxytoswapi", nil)
 	assert.Equal(200, resp.StatusCode)
-
-	body, err := io.ReadAll(resp.Body)
-	noErr(err)
-
 	var responseContent []Film
-	err = json.Unmarshal(body, &responseContent)
+	err := json.Unmarshal(body, &responseContent)
 	noErr(err)
-
 	// check if the butler server defined headers are present
 	assert.Equal("butler", resp.Header.Get("X-Custom-Header"))
-
 	// check if the swapi server defined headers are present
 	assert.Equal("/api/films/all.json", resp.Header.Get("x-matched-path"))
-
 	// headers defined by the butler server should overwrite the swapi headers
 	assert.Equal("butler", resp.Header.Get("server"))
-
 	expectedResponse := []Film{
 		{
 			Title:        "A New Hope",
@@ -1549,7 +1345,6 @@ func TestProxyResponse(t *testing.T) {
 			URL: "https://swapi.info/api/films/6",
 		},
 	}
-
 	assert.Equal(expectedResponse, responseContent)
 }
 
@@ -1589,12 +1384,6 @@ func decodeGzip(b []byte) []byte {
 	decoded, err := io.ReadAll(reader)
 	noErr(err)
 	return decoded
-}
-
-func noErr(err error) {
-	if err != nil {
-		panic(err)
-	}
 }
 
 const JS_SAMPLE = `'use strict';/*
