@@ -24,13 +24,12 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 	monitor := createMonitorRecorder(server)
 
 	echoServer := parent.GetEcho()
-	basepath := parent.GetPath()
 	middlewares := append(parent.GetMiddlewares(), e.GetMiddlewares()...)
 	authHandlers := parent.GetAuthHandlers()
 	defaultEncoding := e.GetEncoding()
 	cachePolicy := e.GetCachePolicy()
 	streamSettings := e.GetStreamingSettings()
-	fullpath := pathJoin(basepath, e.GetPath())
+	fullpath := e.GetPath()
 	method := e.GetMethod()
 
 	reqMiddlewares := getReqMiddlewares(middlewares)
