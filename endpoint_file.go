@@ -1,6 +1,7 @@
 package butler
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"path"
@@ -110,6 +111,14 @@ func (e *FsEndpoint) Register(parent EndpointParent) {
 			response.Headers.Set("Last-Modified", modTime.Format(http.TimeFormat))
 			return response
 		}
+	}
+
+	if e.Name == "" {
+		e.Name = "Static Files"
+	}
+
+	if e.Description == "" {
+		e.Description = fmt.Sprintf("Serves static files from the local directory: '%s'", e.Dir)
 	}
 
 	registerEndpoint(e, parent)

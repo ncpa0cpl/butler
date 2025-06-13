@@ -17,7 +17,7 @@ type EndpointData struct {
 	ResponseT   TypeStructure
 }
 
-func CreateApiDocumentation(path string, endpoints []EndpointData, e *echo.Echo) {
+func CreateApiDocumentation(path string, endpoints []EndpointData, e *echo.Echo, m ...echo.MiddlewareFunc) {
 	html, err := generateDocPage(endpoints)
 
 	if err != nil {
@@ -27,5 +27,5 @@ func CreateApiDocumentation(path string, endpoints []EndpointData, e *echo.Echo)
 
 	e.GET(path, func(ctx echo.Context) error {
 		return ctx.HTMLBlob(200, html)
-	})
+	}, m...)
 }

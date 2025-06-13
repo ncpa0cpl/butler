@@ -2,6 +2,7 @@ package butler
 
 import (
 	"fmt"
+	"reflect"
 
 	echo "github.com/labstack/echo/v4"
 )
@@ -239,13 +240,16 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) {
 		},
 	}
 
-	if g.Name != "" {
-		getEndpoint.Name = fmt.Sprintf("get one %s", g.Name)
-		getListEndpoint.Name = fmt.Sprintf("list %s", g.Name)
-		postEndpoint.Name = fmt.Sprintf("create a %s", g.Name)
-		putEndpoint.Name = fmt.Sprintf("update a %s", g.Name)
-		deleteEndpoint.Name = fmt.Sprintf("delete a %s", g.Name)
+	if g.Name == "" {
+		var t T
+		g.Name = getTypeName(t)
 	}
+
+	getEndpoint.Name = g.Name
+	getListEndpoint.Name = fmt.Sprintf("%s List", g.Name)
+	postEndpoint.Name = g.Name
+	putEndpoint.Name = g.Name
+	deleteEndpoint.Name = g.Name
 
 	getEndpoint.Register(g)
 	getListEndpoint.Register(g)
@@ -254,10 +258,10 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) {
 	deleteEndpoint.Register(g)
 
 	var zeroResp B
-	getEndpoint.responseT = zeroResp
-	getListEndpoint.responseT = zeroResp
-	postEndpoint.responseT = zeroResp
-	putEndpoint.responseT = zeroResp
+	getEndpoint.ResponseType = zeroResp
+	getListEndpoint.ResponseType = zeroResp
+	postEndpoint.ResponseType = zeroResp
+	putEndpoint.ResponseType = zeroResp
 
 	endpoints := []EndpointInterface{
 		getEndpoint,
@@ -268,6 +272,14 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) {
 	}
 
 	g.routes = endpoints
+}
+
+func getTypeName(myvar any) string {
+	if t := reflect.TypeOf(myvar); t.Kind() == reflect.Ptr {
+		return t.Elem().Name()
+	} else {
+		return t.Name()
+	}
 }
 
 //

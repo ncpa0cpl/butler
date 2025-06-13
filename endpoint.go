@@ -21,8 +21,10 @@ type Endpoint[T any, B any] struct {
 	Description string
 	Name        string
 
+	// Optional. Type assigned to this field will be used to generate the response type in the documentation
+	ResponseType any
+
 	bindParams paramBinder[T]
-	responseT  any
 	parent     EndpointParent
 }
 
@@ -118,5 +120,5 @@ func (g *Endpoint[T, B]) GetBodyT() any {
 }
 
 func (g *Endpoint[T, B]) GetResponseT() any {
-	return g.responseT
+	return g.ResponseType
 }

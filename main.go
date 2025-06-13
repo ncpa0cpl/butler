@@ -1,8 +1,10 @@
 package butler
 
 import (
+	"cmp"
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/gofrs/uuid"
 	"github.com/gorilla/sessions"
@@ -118,6 +120,27 @@ func (server *Server) Close() {
 	server.echo.Close()
 }
 
+func sortEndpoints(a, b swag.EndpointData) int {
+	if (a.IsGroup && b.IsGroup) || (!a.IsGroup && !b.IsGroup) {
+		aName := a.Name
+		bName := b.Name
+
+		if aName == "" {
+			aName = a.Path
+		}
+		if bName == "" {
+			bName = b.Path
+		}
+
+		return cmp.Compare(aName, bName)
+	}
+
+	if a.IsGroup {
+		return -1
+	}
+	return 1
+}
+
 func mapEndpoints(engpoints []EndpointInterface) []swag.EndpointData {
 	endpData := make([]swag.EndpointData, 0, len(engpoints))
 
@@ -138,9 +161,11 @@ func mapEndpoints(engpoints []EndpointInterface) []swag.EndpointData {
 		})
 	}
 
+	slices.SortFunc(endpData, sortEndpoints)
+
 	return endpData
 }
 
-func AddApiDocumentationRoute(path string, server *Server) {
-	swag.CreateApiDocumentation(path, mapEndpoints(server.endpoints), server.echo)
+func AddApiDocumentationRoute(path string, server *Server, m ...echo.MiddlewareFunc) {
+	swag.CreateApiDocumentation(path, mapEndpoints(server.endpoints), server.echo, m...)
 }
