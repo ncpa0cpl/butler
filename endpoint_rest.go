@@ -1,6 +1,10 @@
 package butler
 
-import "fmt"
+import (
+	"fmt"
+
+	echo "github.com/labstack/echo/v4"
+)
 
 type RestResource[Q any, B any] interface {
 	Get(req *Request, params Q) (payload *B, responseOverride *Response)
@@ -36,9 +40,22 @@ type RestEndpoints[Q any, B any] struct {
 
 	middlewares []Middleware
 	parent      EndpointParent
+	routes      []EndpointInterface
 }
 
-func (g *RestEndpoints[T, B]) GetEcho() EchoServer {
+func (g *RestEndpoints[T, B]) GetName() string {
+	return g.Name
+}
+
+func (g *RestEndpoints[T, B]) GetDescription() string {
+	return g.Description
+}
+
+func (g *RestEndpoints[T, B]) GetSubRoutes() []EndpointInterface {
+	return g.routes
+}
+
+func (g *RestEndpoints[T, B]) GetEcho() *echo.Echo {
 	return g.parent.GetEcho()
 }
 
@@ -48,6 +65,10 @@ func (g *RestEndpoints[T, B]) GetMiddlewares() []Middleware {
 
 func (g *RestEndpoints[T, B]) GetPath() string {
 	return pathJoin(g.parent.GetPath(), g.Path)
+}
+
+func (g *RestEndpoints[T, B]) GetMethod() string {
+	return ""
 }
 
 func (g *RestEndpoints[T, B]) GetAuthHandlers() []AuthHandler {
@@ -65,7 +86,7 @@ func (g *RestEndpoints[T, B]) Use(middleware Middleware) {
 	g.middlewares = append(g.middlewares, middleware)
 }
 
-func (g *RestEndpoints[T, B]) Register(server EndpointParent) []EndpointInterface {
+func (g *RestEndpoints[T, B]) Register(server EndpointParent) {
 	if g.parent != nil {
 		panic("rest endpoints cannot be registered twice")
 	}
@@ -79,7 +100,6 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) []EndpointInterfac
 		Encoding:          g.Encoding,
 		CachePolicy:       g.CachePolicy,
 		StreamingSettings: g.StreamingSettings,
-		Name:              fmt.Sprintf("GET endpoint for the %s resource", g.Name),
 		Handler: func(request *Request, params T) *Response {
 			payload, err := g.Resource.Get(request, params)
 
@@ -109,7 +129,6 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) []EndpointInterfac
 		Encoding:          g.Encoding,
 		CachePolicy:       g.CachePolicy,
 		StreamingSettings: g.StreamingSettings,
-		Name:              fmt.Sprintf("GET endpoint for the %s resource", g.Name),
 		Handler: func(request *Request, params T) *Response {
 			payload, err := g.Resource.List(request, params)
 
@@ -147,7 +166,6 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) []EndpointInterfac
 		Auth:              g.Auth,
 		Encoding:          g.Encoding,
 		StreamingSettings: g.StreamingSettings,
-		Name:              fmt.Sprintf("POST endpoint for the %s resource", g.Name),
 		Handler: func(request *Request, params NoParams, body *B) *Response {
 			if g.OnRequest != nil {
 				b := g.OnRequest("Create", body)
@@ -179,7 +197,6 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) []EndpointInterfac
 		Auth:              g.Auth,
 		Encoding:          g.Encoding,
 		StreamingSettings: g.StreamingSettings,
-		Name:              fmt.Sprintf("PUT endpoint for the %s resource", g.Name),
 		Handler: func(request *Request, params T, body *B) *Response {
 			if g.OnRequest != nil {
 				b := g.OnRequest("Update", body)
@@ -211,7 +228,6 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) []EndpointInterfac
 		Auth:              g.Auth,
 		Encoding:          g.Encoding,
 		StreamingSettings: g.StreamingSettings,
-		Name:              fmt.Sprintf("PUT endpoint for the %s resource", g.Name),
 		Handler: func(request *Request, params T) *Response {
 			err := g.Resource.Delete(request, params)
 
@@ -223,11 +239,25 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) []EndpointInterfac
 		},
 	}
 
+	if g.Name != "" {
+		getEndpoint.Name = fmt.Sprintf("get one %s", g.Name)
+		getListEndpoint.Name = fmt.Sprintf("list %s", g.Name)
+		postEndpoint.Name = fmt.Sprintf("create a %s", g.Name)
+		putEndpoint.Name = fmt.Sprintf("update a %s", g.Name)
+		deleteEndpoint.Name = fmt.Sprintf("delete a %s", g.Name)
+	}
+
 	getEndpoint.Register(g)
 	getListEndpoint.Register(g)
 	postEndpoint.Register(g)
 	putEndpoint.Register(g)
 	deleteEndpoint.Register(g)
+
+	var zeroResp B
+	getEndpoint.responseT = zeroResp
+	getListEndpoint.responseT = zeroResp
+	postEndpoint.responseT = zeroResp
+	putEndpoint.responseT = zeroResp
 
 	endpoints := []EndpointInterface{
 		getEndpoint,
@@ -237,5 +267,11 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) []EndpointInterfac
 		deleteEndpoint,
 	}
 
-	return endpoints
+	g.routes = endpoints
 }
+
+//
+
+func (g *RestEndpoints[T, B]) GetParamsT() any   { return nil }
+func (g *RestEndpoints[T, B]) GetBodyT() any     { return nil }
+func (g *RestEndpoints[T, B]) GetResponseT() any { return nil }

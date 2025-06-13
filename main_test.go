@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +20,88 @@ import (
 	f "github.com/ncpa0cpl/butler"
 	"github.com/stretchr/testify/assert"
 )
+
+type QParams struct {
+	Search     *f.StringQParam
+	Limit      *f.NumberQParam
+	IncludeDel *f.BoolQParam
+}
+
+type Book struct {
+	Title string
+}
+
+type BookResource struct {
+	ID    string
+	Title string
+	Pages uint
+}
+
+type BooksQueryParams struct {
+	ID     *f.StringUrlParam
+	Filter *f.StringQParam
+}
+
+func (b BookResource) Get(req *f.Request, params BooksQueryParams) (*BookResource, *f.Response) {
+	id := params.ID.Get()
+
+	for _, book := range bookStore {
+		if book.ID == id {
+			return &book, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func (b BookResource) List(req *f.Request, params BooksQueryParams) ([]BookResource, *f.Response) {
+	if params.Filter.Has() {
+		filtered := make([]BookResource, 0, len(bookStore))
+		for _, book := range bookStore {
+			if strings.Contains(book.Title, params.Filter.Get()) {
+				filtered = append(filtered, book)
+			}
+		}
+		return filtered, nil
+	}
+
+	return bookStore, nil
+}
+
+func (b BookResource) Create(req *f.Request, body *BookResource) (*BookResource, *f.Response) {
+	bookStore = append(bookStore, *body)
+	return body, nil
+}
+
+func (b BookResource) Update(req *f.Request, params BooksQueryParams, body *BookResource) (*BookResource, *f.Response) {
+	id := params.ID.Get()
+
+	for idx := range bookStore {
+		book := &bookStore[idx]
+		if book.ID == id {
+			book.Title = body.Title
+			book.Pages = body.Pages
+			return book, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func (b BookResource) Delete(req *f.Request, params BooksQueryParams) *f.Response {
+	id := params.ID.Get()
+
+	for idx, book := range bookStore {
+		if book.ID == id {
+			bookStore = slices.Delete(bookStore, idx, idx+1)
+			return nil
+		}
+	}
+
+	return nil
+}
+
+var bookStore []BookResource = []BookResource{}
 
 func TestGetEndpointWithQueryParams(t *testing.T) {
 	assert := assert.New(t)

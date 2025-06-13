@@ -21,6 +21,14 @@ type StringQParam struct {
 	isSet bool
 }
 
+func (p *StringQParam) IsQueryParam() bool {
+	return true
+}
+
+func (p *StringQParam) AcceptedKind() string {
+	return reflect.String.String()
+}
+
 // True if the request contained this param
 func (p *StringQParam) Has() bool {
 	return p.isSet
@@ -50,6 +58,14 @@ func (p *StringQParam) Init(ctx RequestContext, name string) *ParamParsingError 
 type NumberQParam struct {
 	value int64
 	isSet bool
+}
+
+func (p *NumberQParam) IsQueryParam() bool {
+	return true
+}
+
+func (p *NumberQParam) AcceptedKind() string {
+	return reflect.Int64.String()
 }
 
 // True if the request contained this param
@@ -88,6 +104,14 @@ type BoolQParam struct {
 	isSet bool
 }
 
+func (p *BoolQParam) IsQueryParam() bool {
+	return true
+}
+
+func (p *BoolQParam) AcceptedKind() string {
+	return reflect.Bool.String()
+}
+
 // True if the request contained this param
 func (p *BoolQParam) Has() bool {
 	return p.isSet
@@ -123,6 +147,10 @@ type StringUrlParam struct {
 	isSet bool
 }
 
+func (p *StringUrlParam) AcceptedKind() string {
+	return reflect.String.String()
+}
+
 func (p *StringUrlParam) Get() string {
 	return p.value
 }
@@ -144,6 +172,10 @@ func (p *StringUrlParam) Init(ctx RequestContext, name string) *ParamParsingErro
 type NumberUrlParam struct {
 	value int64
 	isSet bool
+}
+
+func (p *NumberUrlParam) AcceptedKind() string {
+	return reflect.Int64.String()
 }
 
 func (p *NumberUrlParam) Get() int64 {
@@ -172,6 +204,10 @@ func (p *NumberUrlParam) Init(ctx RequestContext, name string) *ParamParsingErro
 type BoolUrlParam struct {
 	value bool
 	isSet bool
+}
+
+func (p *BoolUrlParam) AcceptedKind() string {
+	return reflect.Bool.String()
 }
 
 func (p *BoolUrlParam) Get() bool {

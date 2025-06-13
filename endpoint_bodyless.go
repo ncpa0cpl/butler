@@ -18,10 +18,24 @@ type BasicEndpoint[T any] struct {
 	Name        string
 
 	bindParams paramBinder[T]
+	responseT  any
+	parent     EndpointParent
+}
+
+func (e *BasicEndpoint[T]) GetName() string {
+	return e.Name
+}
+
+func (e *BasicEndpoint[T]) GetDescription() string {
+	return e.Description
+}
+
+func (g *BasicEndpoint[T]) GetSubRoutes() []EndpointInterface {
+	return []EndpointInterface{}
 }
 
 func (e *BasicEndpoint[T]) GetPath() string {
-	return e.Path
+	return pathJoin(e.parent.GetPath(), e.Path)
 }
 
 func (e *BasicEndpoint[T]) GetMethod() string {
@@ -63,11 +77,30 @@ func (e *BasicEndpoint[T]) ExecuteHandler(ctx echo.Context, request *Request) (r
 	return response
 }
 
-func (e *BasicEndpoint[T]) Register(parent EndpointParent) []EndpointInterface {
+func (e *BasicEndpoint[T]) Register(parent EndpointParent) {
 	if e.Handler == nil {
 		panic("endpoint has no handler")
 	}
+	if e.parent != nil {
+		panic("endpoint can only be registered once")
+	}
+
+	e.parent = parent
 
 	registerEndpoint(e, parent)
-	return []EndpointInterface{e}
+}
+
+//
+
+func (g *BasicEndpoint[T]) GetParamsT() any {
+	var zeroP T
+	return zeroP
+}
+
+func (g *BasicEndpoint[T]) GetBodyT() any {
+	return nil
+}
+
+func (g *BasicEndpoint[T]) GetResponseT() any {
+	return g.responseT
 }

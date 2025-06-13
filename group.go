@@ -1,5 +1,7 @@
 package butler
 
+import echo "github.com/labstack/echo/v4"
+
 type Group struct {
 	Path string
 	Auth AuthHandler
@@ -12,7 +14,7 @@ type Group struct {
 	Description string
 }
 
-func (g *Group) GetEcho() EchoServer {
+func (g *Group) GetEcho() *echo.Echo {
 	return g.parent.GetEcho()
 }
 
@@ -22,6 +24,10 @@ func (g *Group) GetMiddlewares() []Middleware {
 
 func (g *Group) GetPath() string {
 	return pathJoin(g.parent.GetPath(), g.Path)
+}
+
+func (g *Group) GetMethod() string {
+	return ""
 }
 
 func (g *Group) GetAuthHandlers() []AuthHandler {
@@ -35,6 +41,18 @@ func (g *Group) GetServer() *Server {
 	return g.parent.GetServer()
 }
 
+func (g *Group) GetName() string {
+	return g.Name
+}
+
+func (g *Group) GetDescription() string {
+	return g.Description
+}
+
+func (g *Group) GetSubRoutes() []EndpointInterface {
+	return g.routes
+}
+
 func (g *Group) Add(endpoint EndpointInterface) {
 	g.routes = append(g.routes, endpoint)
 }
@@ -43,18 +61,20 @@ func (g *Group) Use(middleware Middleware) {
 	g.middlewares = append(g.middlewares, middleware)
 }
 
-func (g *Group) Register(server EndpointParent) []EndpointInterface {
+func (g *Group) Register(server EndpointParent) {
 	if g.parent != nil {
 		panic("group cannot be registered twice")
 	}
 
-	endpoints := make([]EndpointInterface, 0, len(g.routes))
-
 	g.parent = server
 	for _, endp := range g.routes {
-		subendpoints := endp.Register(g)
-		endpoints = append(endpoints, subendpoints...)
+		endp.Register(g)
 	}
 
-	return endpoints
 }
+
+//
+
+func (g *Group) GetParamsT() any   { return nil }
+func (g *Group) GetBodyT() any     { return nil }
+func (g *Group) GetResponseT() any { return nil }

@@ -32,10 +32,24 @@ type FsEndpoint struct {
 	Name        string
 
 	middlewares []Middleware
+	parent      EndpointParent
+}
+
+func (e *FsEndpoint) GetName() string {
+	return e.Name
+}
+
+func (e *FsEndpoint) GetDescription() string {
+	return e.Description
+}
+
+func (e *FsEndpoint) GetSubRoutes() []EndpointInterface {
+	return []EndpointInterface{}
+
 }
 
 func (e *FsEndpoint) GetPath() string {
-	return strings.TrimRight(e.Path, "/") + "/*"
+	return pathJoin(e.parent.GetPath(), strings.TrimRight(e.Path, "/")+"/*")
 }
 
 func (e *FsEndpoint) GetMethod() string {
@@ -66,7 +80,13 @@ func (e *FsEndpoint) Use(middleware Middleware) {
 	e.middlewares = append(e.middlewares, middleware)
 }
 
-func (e *FsEndpoint) Register(parent EndpointParent) []EndpointInterface {
+func (e *FsEndpoint) Register(parent EndpointParent) {
+	if e.parent != nil {
+		panic("endpoint can only be registered once")
+	}
+
+	e.parent = parent
+
 	if e.Handler == nil {
 		e.Handler = func(
 			request *Request,
@@ -93,7 +113,6 @@ func (e *FsEndpoint) Register(parent EndpointParent) []EndpointInterface {
 	}
 
 	registerEndpoint(e, parent)
-	return []EndpointInterface{e}
 }
 
 func (e *FsEndpoint) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
@@ -127,4 +146,18 @@ func (e *FsEndpoint) ExecuteHandler(ctx echo.Context, request *Request) (retVal 
 	}
 
 	return resp
+}
+
+//
+
+func (g *FsEndpoint) GetParamsT() any {
+	return nil
+}
+
+func (g *FsEndpoint) GetBodyT() any {
+	return nil
+}
+
+func (g *FsEndpoint) GetResponseT() any {
+	return nil
 }

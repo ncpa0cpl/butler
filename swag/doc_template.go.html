@@ -1,0 +1,258 @@
+{{define "chevron"}}
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  class="w-4 ml-2 mr-2"
+>
+  <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" sketch:type="MSPage">
+    <g id="Icon-Set-Filled" sketch:type="MSLayerGroup" transform="translate(-474.000000, -1196.000000)" fill="currentColor">
+      <path d="M488.404,1207.36 L477.637,1197.6 C476.806,1196.76 475.459,1196.76 474.629,1197.6 C473.798,1198.43 473.798,1199.77 474.629,1200.6 L483.885,1209 L474.629,1217.4 C473.798,1218.23 473.798,1219.57 474.629,1220.4 C475.459,1221.24 476.806,1221.24 477.637,1220.4 L488.404,1210.64 C488.854,1210.19 489.052,1209.59 489.015,1209 C489.052,1208.41 488.854,1207.81 488.404,1207.36" id="chevron-right" sketch:type="MSShapeGroup"></path>
+    </g>
+  </g>
+</svg>
+{{end}}
+
+{{define "MethodBadge"}}
+  {{if eq . "GET"}}
+    <span class="font-mono font-medium rounded-md inline-block bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 px-2 py-1 mr-2 text-xs">
+      {{.}}
+    </span>
+  {{end}}
+  {{if eq . "POST"}}
+    <span class="font-mono font-medium rounded-md inline-block bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-2 py-1 mr-2 text-xs">
+      {{.}}
+    </span>
+  {{end}}
+  {{if eq . "PUT"}}
+    <span class="font-mono font-medium rounded-md inline-block bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 px-2 py-1 mr-2 text-xs">
+      {{.}}
+    </span>
+  {{end}}
+  {{if eq . "PATCH"}}
+    <span class="font-mono font-medium rounded-md inline-block bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300 px-2 py-1 mr-2 text-xs">
+      {{.}}
+    </span>
+  {{end}}
+  {{if eq . "DELETE"}}
+    <span class="font-mono font-medium rounded-md inline-block bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 px-2 py-1 mr-2 text-xs">
+      {{.}}
+    </span>
+  {{end}}
+  {{if eq . "OPTIONS"}}
+    <span class="font-mono font-medium rounded-md inline-block bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300 px-2 py-1 mr-2 text-xs">
+      {{.}}
+    </span>
+  {{end}}
+  {{if eq . "HEAD"}}
+    <span class="font-mono font-medium rounded-md inline-block bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 px-2 py-1 mr-2 text-xs">
+      {{.}}
+    </span>
+  {{end}}
+{{end}}
+
+{{define "SidebarGroup"}}
+  {{ $entry := index . 0  }}
+  {{ $level := index . 1  }}
+
+  <div class="mb-1">
+      {{if eq (len $entry.Children) 0}}
+        <button
+          is="cst-groupbtn"
+          data-endpid="{{$entry.Method}}{{$entry.Path}}"
+          class="flex items-center w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-300"
+          style="padding-left: {{add (multiply $level 16) 16}}px"
+        >
+          {{template "MethodBadge" $entry.Method}}
+          <span class="truncate">
+            {{if ne $entry.Name ""}}
+              {{$entry.Name}}
+            {{else}}
+              {{$entry.Path}}
+            {{end}}
+          </span>
+        </button>
+      {{else if $entry.IsGroup}}
+        <button
+          is="cst-collapsiblebtn"
+          data-id="{{$level}}_{{$entry.Path}}"
+          class="flex items-center w-full text-left px-4 py-2 text-sm font-medium cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200"
+        >
+          {{template "chevron"}}
+          <span class="truncate mt-1">
+            {{if ne $entry.Name ""}}
+              {{$entry.Name}}
+            {{else}}
+              {{$entry.Path}}
+            {{end}}
+          </span>
+        </button>
+        <div data-id="{{$level}}_{{$entry.Path}}" class="collapsible-content hidden">
+          {{range $entry.Children}}
+              {{template "SidebarGroup" (tuple . (add $level 1))}}
+          {{end}}
+        </div>
+      {{end}}
+  </div>
+{{end}}
+
+
+{{define "EndpointDetails"}}
+  {{ $entry := index . 0  }}
+  {{ $index := index . 1  }}
+
+  <div data-endpid="{{$entry.Method}}{{$entry.Path}}" class="endp-details{{if ne $index 0}} hidden{{end}} flex-1 overflow-y-auto p-6">
+    <div class="space-y-6">
+      <div>
+        <div class="flex items-center gap-3 mb-2">
+          {{template "MethodBadge" $entry.Method}}
+          <h1 class="text-2xl font-bold text-gray-800 dark:text-white">
+            {{if ne $entry.Name ""}}
+              {{$entry.Name}}
+            {{else}}
+              {{$entry.Path}}
+            {{end}}
+          </h1>
+        </div>
+        <div class="bg-gray-100 dark:bg-slate-800 p-3 rounded-md font-mono text-sm dark:text-white mb-4">
+          {{$entry.Path}}
+        </div>
+        {{if ne $entry.Description ""}}
+          <p class="text-gray-600 dark:text-gray-300 mb-6">{{$entry.Description}}</p>
+        {{end}}
+      </div>
+      <div is="cst-tabs">
+        {{$hasPrams := and (eq $entry.ParamsT.Kind "struct") (ne (len $entry.ParamsT.Children) 0)}}
+        {{$hasBody := eq $entry.BodyT.Kind "struct"}}
+        {{$hasResponse := eq $entry.ResponseT.Kind "struct"}}
+        {{$showBtns := atleasttwo $hasPrams $hasBody $hasResponse}}
+
+        {{if $showBtns}}
+          <div class="tab-buttons inline-flex h-10 items-center justify-center rounded-md bg-gray-200 dark:bg-slate-600 dark:text-gray-300 p-1 text-white">
+            {{if $hasPrams}}
+              <button data-tabid="params" class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 dark:text-white text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                Search Parameters
+              </button>
+            {{end}}        
+            {{if $hasBody}}
+              <button data-tabid="request" class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 dark:text-white text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                Request Body
+              </button>
+            {{end}}  
+            {{if $hasResponse}}
+              <button data-tabid="response" class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 dark:text-white text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                Response
+              </button>
+            {{end}}  
+          </div>
+        {{end}}
+
+        {{if $hasPrams}}
+          <div data-tabid="params" class="tab-content {{if $showBtns}}hidden{{end}} mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+            <div class="rounded-lg border dark:border-slate-600 bg-card text-card-foreground shadow-sm">
+              <div class="flex flex-col space-y-1.5 p-6">
+                <h3 class="text-2xl font-semibold leading-none tracking-tight dark:text-white">
+                  Query Parameters
+                </h3>
+                <p class="text-sm text-muted-foreground dark:text-white">
+                  Parameters that can be passed in the URL query string and will be understood by the server
+                </p>
+              </div>
+              <div class="p-6 pt-0">
+                <div class="relative w-full overflow-auto">
+                  <table class="w-full caption-bottom text-sm dark:text-white">
+                    <thead class="[&_tr]:border-b">
+                      <tr class="border-b transition-colors hover:bg-lime-50 dark:hover:bg-teal-950 border-gray-600">
+                        <th class="h-12 px-4 text-left align-middle font-bold text-muted-foreground">Name</th>
+                        <th class="h-12 px-4 text-left align-middle font-bold text-muted-foreground">Type</th>
+                      </tr>
+                    </thead>
+                    <tbody class="[&_tr:last-child]:border-0">
+                      {{range $entry.ParamsT.Children}}
+                        {{if ne .Kind ""}}
+                          <tr class="border-b transition-colors hover:bg-lime-50 dark:hover:bg-teal-950 border-gray-600">
+                            <td class="p-4 align-middle font-medium">{{.Name}}</td>
+                            <td class="p-4 align-middle">{{.Kind}}</td>
+                          </tr>
+                        {{end}}
+                      {{end}}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        {{end}}
+
+        {{if $hasBody}}
+          <div data-tabid="request" class="tab-content {{if $showBtns}}hidden{{end}} mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+            <div class="rounded-lg border dark:border-slate-600 bg-card text-card-foreground shadow-sm">
+              <div class="flex flex-col space-y-1.5 p-6">
+                <h3 class="text-2xl font-semibold leading-none tracking-tight dark:text-white">
+                  Request Body
+                </h3>
+                <p class="text-sm text-muted-foreground dark:text-white">
+                  The structure of the payload that every request to this endpoint should contain
+                </p>
+              </div>
+              <div class="p-6 pt-0">
+                <pre class="bg-gray-100 dark:bg-slate-800 p-4 rounded-md overflow-auto"><code class="text-sm dark:text-white">{{$entry.BodyT.Format}}</code></pre>
+              </div>
+            </div>
+          </div>
+        {{end}}
+
+        {{if $hasResponse}}
+          <div data-tabid="response" class="tab-content {{if $showBtns}}hidden{{end}} mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+            <div class="rounded-lg border dark:border-slate-600 bg-card text-card-foreground shadow-sm">
+              <div class="flex flex-col space-y-1.5 p-6">
+                <h3 class="text-2xl font-semibold leading-none tracking-tight dark:text-white">
+                  Response
+                </h3>
+                <p class="text-sm text-muted-foreground dark:text-white">
+                  The structure of the response that will be sent back to the client
+                </p>
+              </div>
+              <div class="p-6 pt-0">
+                <pre class="bg-gray-100 dark:bg-slate-800 p-4 rounded-md overflow-auto"><code class="text-sm dark:text-white">{{$entry.ResponseT.Format}}</code></pre>
+              </div>
+            </div>
+          </div>
+        {{end}} 
+      </div>
+    </div>
+  </div>
+{{end}}
+
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <title>{{.PageTitle}}</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    </head>
+    <body>
+        <main class="min-h-screen bg-slate-50 dark:bg-slate-900">
+          <div class="flex h-screen flex-col md:flex-row">
+            <div class="w-full md:w-96 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 overflow-y-auto">
+              <div class="p-4 border-b border-gray-200 dark:border-slate-700">
+                <h1 class="text-xl font-bold text-gray-800 dark:text-white">API Documentation</h1>
+              </div>
+              {{range .Endpoints}}
+                {{template "SidebarGroup" (tuple . 0)}}
+              {{end}}
+            </div>
+
+            {{range $idx, $item := (flatten .Endpoints)}}
+              {{template "EndpointDetails" (tuple $item $idx)}}
+            {{end}}
+          </div>
+        </main>
+
+        {{.ScriptTag}}
+    </body>
+</html>

@@ -8,29 +8,28 @@ import (
 	"github.com/labstack/echo-contrib/session"
 	echo "github.com/labstack/echo/v4"
 	"github.com/ncpa0cpl/butler/echo_middleware/cors"
+	"github.com/ncpa0cpl/butler/swag"
 )
-
-type EchoServer interface {
-	GET(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	POST(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	PUT(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	PATCH(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	DELETE(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	OPTIONS(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	HEAD(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	Any(path string, handler echo.HandlerFunc, middleware ...echo.MiddlewareFunc) []*echo.Route
-}
 
 type EndpointParent interface {
 	GetServer() *Server
-	GetEcho() EchoServer
+	GetEcho() *echo.Echo
 	GetMiddlewares() []Middleware
 	GetPath() string
 	GetAuthHandlers() []AuthHandler
 }
 
 type EndpointInterface interface {
-	Register(server EndpointParent) []EndpointInterface
+	Register(server EndpointParent)
+
+	GetName() string
+	GetDescription() string
+	GetSubRoutes() []EndpointInterface
+	GetPath() string
+	GetMethod() string
+	GetParamsT() any
+	GetBodyT() any
+	GetResponseT() any
 }
 
 type Server struct {
@@ -55,7 +54,7 @@ func CreateServer() *Server {
 	}
 }
 
-func (server *Server) GetEcho() EchoServer {
+func (server *Server) GetEcho() *echo.Echo {
 	return server.echo
 }
 
@@ -89,8 +88,8 @@ func (server *Server) GetServer() *Server {
 }
 
 func (server *Server) Add(endpoint EndpointInterface) {
-	routes := endpoint.Register(server)
-	server.endpoints = append(server.endpoints, routes...)
+	endpoint.Register(server)
+	server.endpoints = append(server.endpoints, endpoint)
 }
 
 func (server *Server) Use(middleware Middleware) {
@@ -116,4 +115,29 @@ func (server *Server) Listen() error {
 
 func (server *Server) Close() {
 	server.echo.Close()
+}
+
+func mapEndpoints(engpoints []EndpointInterface) []swag.EndpointData {
+	endpData := make([]swag.EndpointData, 0, len(engpoints))
+
+	for _, endpoint := range engpoints {
+		sub := endpoint.GetSubRoutes()
+		endpData = append(endpData, swag.EndpointData{
+			Name:        endpoint.GetName(),
+			Description: endpoint.GetDescription(),
+			Path:        endpoint.GetPath(),
+			Method:      endpoint.GetMethod(),
+			ParamsT:     swag.NewParamsTypeStructure(endpoint.GetParamsT()),
+			BodyT:       swag.NewTypeStructure(endpoint.GetBodyT()),
+			ResponseT:   swag.NewTypeStructure(endpoint.GetResponseT()),
+			IsGroup:     len(sub) > 0,
+			Children:    mapEndpoints(sub),
+		})
+	}
+
+	return endpData
+}
+
+func AddApiDocumentationRoute(path string, server *Server) {
+	swag.CreateApiDocumentation(path, mapEndpoints(server.endpoints), server.echo)
 }
