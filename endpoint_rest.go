@@ -241,7 +241,7 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) {
 	}
 
 	if g.Name == "" {
-		var t T
+		var t B
 		g.Name = getTypeName(t)
 	}
 
