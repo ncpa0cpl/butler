@@ -46,15 +46,17 @@ func (t TypeStructure) Format() string {
 	case "slice", "array":
 		s := "Array<\n"
 		for _, child := range t.Children {
-			s += fmt.Sprintf("  | %s\n", padLines(child.Format(), 1))
+			s += fmt.Sprintf("  %s\n", padLines(child.Format(), 1))
 		}
 		s += ">"
+		return s
 	case "map":
 		s := "Map<string,\n"
 		for _, child := range t.Children {
-			s += fmt.Sprintf("  | %s\n", padLines(child.Format(), 1))
+			s += fmt.Sprintf("  %s\n", padLines(child.Format(), 1))
 		}
 		s += ">"
+		return s
 	}
 
 	return "unknown"
@@ -176,7 +178,7 @@ func padLines(str string, startFromIdx int) string {
 	lines := strings.Split(str, "\n")
 
 	for i := startFromIdx; i < len(lines); i++ {
-		lines[i] = "    " + lines[i]
+		lines[i] = "  " + lines[i]
 	}
 
 	return strings.Join(lines, "\n")

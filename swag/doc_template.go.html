@@ -126,8 +126,8 @@
       </div>
       <div is="cst-tabs">
         {{$hasPrams := and (eq $entry.ParamsT.Kind "struct") (ne (len $entry.ParamsT.Children) 0)}}
-        {{$hasBody := eq $entry.BodyT.Kind "struct"}}
-        {{$hasResponse := eq $entry.ResponseT.Kind "struct"}}
+        {{$hasBody := ne $entry.BodyT.Kind ""}}
+        {{$hasResponse := ne $entry.ResponseT.Kind ""}}
         {{$showBtns := atleasttwo $hasPrams $hasBody $hasResponse}}
 
         {{if $showBtns}}

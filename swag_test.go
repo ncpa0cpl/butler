@@ -21,8 +21,9 @@ type SwagParams struct {
 // 		Handler: func(request *f.Request, params SwagParams) *f.Response {
 // 			return f.Respond.Ok()
 // 		},
-// 		Name:        "Authors Endpoint",
-// 		Description: "Sends a list of all authors",
+// 		Name:         "Authors Endpoint",
+// 		Description:  "Sends a list of all authors",
+// 		ResponseType: []Book{},
 // 	}
 
 // 	books := &f.BasicEndpoint[f.NoParams]{
