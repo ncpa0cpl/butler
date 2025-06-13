@@ -33,7 +33,7 @@ func (e *Endpoint[T, B]) GetName() string {
 }
 
 func (e *Endpoint[T, B]) GetDescription() string {
-	return e.Name
+	return e.Description
 }
 
 func (e *Endpoint[T, B]) GetSubRoutes() []EndpointInterface {
