@@ -61,7 +61,7 @@
       {{if eq (len $entry.Children) 0}}
         <button
           is="cst-groupbtn"
-          data-endpid="{{$entry.Method}}{{$entry.Path}}"
+          data-endpid="{{$entry.Uid}}"
           class="flex items-center w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-300"
           style="padding-left: {{add (multiply $level 16) 16}}px"
         >
@@ -77,8 +77,9 @@
       {{else if $entry.IsGroup}}
         <button
           is="cst-collapsiblebtn"
-          data-id="{{$level}}_{{$entry.Path}}"
+          data-id="{{$entry.Uid}}"
           class="flex items-center w-full text-left px-4 py-2 text-sm font-medium cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200"
+          style="padding-left: {{add (multiply $level 16) 16}}px"
         >
           {{template "chevron"}}
           <span class="truncate mt-1">
@@ -89,7 +90,7 @@
             {{end}}
           </span>
         </button>
-        <div data-id="{{$level}}_{{$entry.Path}}" class="collapsible-content hidden">
+        <div data-id="{{$entry.Uid}}" class="collapsible-content hidden">
           {{range $entry.Children}}
               {{template "SidebarGroup" (tuple . (add $level 1))}}
           {{end}}
@@ -103,7 +104,7 @@
   {{ $entry := index . 0  }}
   {{ $index := index . 1  }}
 
-  <div data-endpid="{{$entry.Method}}{{$entry.Path}}" class="endp-details{{if ne $index 0}} hidden{{end}} flex-1 overflow-y-auto p-6">
+  <div data-endpid="{{$entry.Uid}}" class="endp-details{{if ne $index 0}} hidden{{end}} flex-1 overflow-y-auto p-6">
     <div class="space-y-6">
       <div>
         <div class="flex items-center gap-3 mb-2">

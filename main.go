@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gofrs/uuid"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	echo "github.com/labstack/echo/v4"
@@ -122,7 +123,9 @@ func mapEndpoints(engpoints []EndpointInterface) []swag.EndpointData {
 
 	for _, endpoint := range engpoints {
 		sub := endpoint.GetSubRoutes()
+		uid, _ := uuid.NewV4()
 		endpData = append(endpData, swag.EndpointData{
+			Uid:         uid.String(),
 			Name:        endpoint.GetName(),
 			Description: endpoint.GetDescription(),
 			Path:        endpoint.GetPath(),

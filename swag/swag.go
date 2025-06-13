@@ -5,6 +5,7 @@ import (
 )
 
 type EndpointData struct {
+	Uid         string
 	Name        string
 	Description string
 	Children    []EndpointData

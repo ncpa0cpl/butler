@@ -6,6 +6,7 @@ require (
 	github.com/andybalholm/brotli v1.1.1
 	github.com/carlmjohnson/requests v0.24.3
 	github.com/gabriel-vasile/mimetype v1.4.9
+	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/gorilla/sessions v1.4.0
 	github.com/labstack/echo-contrib v0.17.4
 	github.com/labstack/echo/v4 v4.13.4
