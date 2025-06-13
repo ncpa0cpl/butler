@@ -1,7 +1,6 @@
 package butler
 
 import (
-	"fmt"
 	"reflect"
 
 	echo "github.com/labstack/echo/v4"
@@ -245,11 +244,11 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) {
 		g.Name = getTypeName(t)
 	}
 
-	getEndpoint.Name = g.Name
-	getListEndpoint.Name = fmt.Sprintf("%s List", g.Name)
-	postEndpoint.Name = g.Name
-	putEndpoint.Name = g.Name
-	deleteEndpoint.Name = g.Name
+	getEndpoint.Name = "Show"
+	getListEndpoint.Name = "List"
+	postEndpoint.Name = "Create"
+	putEndpoint.Name = "Update"
+	deleteEndpoint.Name = "Delete"
 
 	getEndpoint.Register(g)
 	getListEndpoint.Register(g)
@@ -259,7 +258,7 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) {
 
 	var zeroResp B
 	getEndpoint.ResponseType = zeroResp
-	getListEndpoint.ResponseType = zeroResp
+	getListEndpoint.ResponseType = make([]B, 0)
 	postEndpoint.ResponseType = zeroResp
 	putEndpoint.ResponseType = zeroResp
 
