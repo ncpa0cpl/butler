@@ -83,7 +83,7 @@ func generateTypeStructure(t reflect.Type, name string, isParamsObject bool) Typ
 	ts := TypeStructure{
 		Name:     name,
 		Kind:     t.Kind().String(),
-		Nullable: isNullable(t),
+		Nullable: false,
 	}
 
 	switch t.Kind() {
@@ -161,17 +161,6 @@ func generateTypeStructure(t reflect.Type, name string, isParamsObject bool) Typ
 
 func isNumber(k string) bool {
 	return k == "int" || k == "int8" || k == "int32" || k == "int64" || k == "uint" || k == "uint8" || k == "uint16" || k == "uint32" || k == "uint64" || k == "float" || k == "float32" || k == "float64"
-}
-
-// isNullable checks if a reflect.Type is nullable.
-// Pointers, interfaces, maps, slices, channels, and functions can be nil.
-func isNullable(t reflect.Type) bool {
-	switch t.Kind() {
-	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
-		return true
-	default:
-		return false
-	}
 }
 
 func padLines(str string, startFromIdx int) string {
