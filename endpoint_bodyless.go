@@ -69,7 +69,7 @@ func (e *BasicEndpoint[T]) ExecuteHandler(ctx echo.Context, request *Request) (r
 		e.bindParams = CreateSearchParamsBinder[T]()
 	}
 
-	params, err := e.bindParams(ctx)
+	params, err := e.bindParams(request)
 	if err != nil {
 		request.Logger.Error(err.ToString())
 		return err.Response()

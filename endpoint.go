@@ -79,7 +79,7 @@ func (e *Endpoint[T, B]) ExecuteHandler(ctx echo.Context, request *Request) (ret
 		return Respond.BadRequest()
 	}
 
-	params, perr := e.bindParams(ctx)
+	params, perr := e.bindParams(request)
 	if perr != nil {
 		request.Logger.Error(perr.ToString())
 		return perr.Response()

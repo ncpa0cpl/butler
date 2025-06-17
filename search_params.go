@@ -2,7 +2,6 @@ package butler
 
 import (
 	"fmt"
-	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
@@ -11,7 +10,7 @@ import (
 type NoParams struct{}
 
 type SearchQParam interface {
-	Init(ctx RequestContext, name string) *ParamParsingError
+	Init(req *Request, name string) *ParamParsingError
 }
 
 // #region Query Params
@@ -47,8 +46,8 @@ func (p *StringQParam) Set(value string) *ParamParsingError {
 	return nil
 }
 
-func (p *StringQParam) Init(ctx RequestContext, name string) *ParamParsingError {
-	v := ctx.QueryParam(name)
+func (p *StringQParam) Init(ctx *Request, name string) *ParamParsingError {
+	v := ctx.EchoContext().QueryParam(name)
 	if v != "" {
 		return p.Set(v)
 	}
@@ -91,8 +90,8 @@ func (p *NumberQParam) Set(value string) *ParamParsingError {
 	return nil
 }
 
-func (p *NumberQParam) Init(ctx RequestContext, name string) *ParamParsingError {
-	v := ctx.QueryParam(name)
+func (p *NumberQParam) Init(ctx *Request, name string) *ParamParsingError {
+	v := ctx.EchoContext().QueryParam(name)
 	if v != "" {
 		return p.Set(v)
 	}
@@ -130,8 +129,8 @@ func (p *BoolQParam) Set(value string) *ParamParsingError {
 	return nil
 }
 
-func (p *BoolQParam) Init(ctx RequestContext, name string) *ParamParsingError {
-	v := ctx.QueryParam(name)
+func (p *BoolQParam) Init(ctx *Request, name string) *ParamParsingError {
+	v := ctx.EchoContext().QueryParam(name)
 	if v != "" {
 		return p.Set(v)
 	}
@@ -161,8 +160,8 @@ func (p *StringUrlParam) Set(value string) *ParamParsingError {
 	return nil
 }
 
-func (p *StringUrlParam) Init(ctx RequestContext, name string) *ParamParsingError {
-	v := ctx.Param(name)
+func (p *StringUrlParam) Init(ctx *Request, name string) *ParamParsingError {
+	v := ctx.EchoContext().Param(name)
 	if v != "" {
 		return p.Set(v)
 	}
@@ -193,8 +192,8 @@ func (p *NumberUrlParam) Set(value string) *ParamParsingError {
 	return nil
 }
 
-func (p *NumberUrlParam) Init(ctx RequestContext, name string) *ParamParsingError {
-	v := ctx.Param(name)
+func (p *NumberUrlParam) Init(ctx *Request, name string) *ParamParsingError {
+	v := ctx.EchoContext().Param(name)
 	if v != "" {
 		return p.Set(v)
 	}
@@ -220,8 +219,8 @@ func (p *BoolUrlParam) Set(value string) *ParamParsingError {
 	return nil
 }
 
-func (p *BoolUrlParam) Init(ctx RequestContext, name string) *ParamParsingError {
-	v := ctx.Param(name)
+func (p *BoolUrlParam) Init(ctx *Request, name string) *ParamParsingError {
+	v := ctx.EchoContext().Param(name)
 	if v != "" {
 		return p.Set(v)
 	}
@@ -251,18 +250,11 @@ func (e *ParamParsingError) ToString() string {
 	return fmt.Sprintf("%s: [param='%s'] %s", e.Message, e.paramName, e.LogMessage)
 }
 
-type RequestContext interface {
-	Path() string
-	Param(name string) string
-	QueryParam(name string) string
-	Cookie(name string) (*http.Cookie, error)
-}
-
-type paramBinder[T any] func(ctx RequestContext) (T, *ParamParsingError)
+type paramBinder[T any] func(ctx *Request) (T, *ParamParsingError)
 
 type internalParamBinder struct {
 	paramName string
-	bind      func(rval reflect.Value, ctx RequestContext) *ParamParsingError
+	bind      func(rval reflect.Value, ctx *Request) *ParamParsingError
 }
 
 func CreateSearchParamsBinder[T any]() paramBinder[T] {
@@ -284,7 +276,7 @@ func CreateSearchParamsBinder[T any]() paramBinder[T] {
 			if field.Type.Kind() != reflect.Pointer {
 				paramKeys = append(paramKeys, internalParamBinder{
 					paramName: paramName,
-					bind: func(rval reflect.Value, ctx RequestContext) *ParamParsingError {
+					bind: func(rval reflect.Value, ctx *Request) *ParamParsingError {
 						field := rval.FieldByName(fname)
 						fieldValue := field.Interface()
 						qParam := fieldValue.(SearchQParam)
@@ -294,7 +286,7 @@ func CreateSearchParamsBinder[T any]() paramBinder[T] {
 			} else {
 				paramKeys = append(paramKeys, internalParamBinder{
 					paramName: paramName,
-					bind: func(rval reflect.Value, ctx RequestContext) *ParamParsingError {
+					bind: func(rval reflect.Value, ctx *Request) *ParamParsingError {
 						field := rval.FieldByName(fname)
 						v := reflect.New(field.Type().Elem())
 						field.Set(v)
@@ -309,7 +301,7 @@ func CreateSearchParamsBinder[T any]() paramBinder[T] {
 		}
 	}
 
-	return func(ctx RequestContext) (T, *ParamParsingError) {
+	return func(ctx *Request) (T, *ParamParsingError) {
 		var params T
 		paramsT := reflect.ValueOf(&params).Elem()
 
