@@ -15,7 +15,6 @@ func main() {
 		Name: "logging_mdw",
 		OnRequest: func(
 			request *Request,
-			next func(request *Request),
 			respond func(response *Response),
 		) error {
 			myLogger.log("request was received")
@@ -38,7 +37,7 @@ func main() {
 ## OnRequest
 
 OnRequest function will run for every received request that did not fail auth. It is given
-onr callback: `respond()`. It can be used to immediately send a response to the client,
+one callback: `respond()`. It can be used to immediately send a response to the client,
 skipping the subsequent middlewares and handlers.
 
 ## OnResponse
