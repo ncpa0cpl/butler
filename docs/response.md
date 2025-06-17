@@ -55,15 +55,15 @@ response := &butler.Respond.Ok().File("path/to/my/file.jpg", "image/jpg")
 ```go
 // stream a byte array
 var data []byte
-response := &butler.Respond.Ok().StreamBytes("video/mp4", data)
+response := &butler.Respond.Ok().StreamBytes(data, "video/mp4")
 
 // stream a file
-response := &butler.Respond.Ok().StreamFile("video/mp4", "path/to/my/file.mp4")
+response := &butler.Respond.Ok().StreamFile("path/to/my/file.mp4", "video/mp4")
 
 // stream from a ButlerReader
 file, _ := os.Open("my/file")
 reader := butler.NewFileReader(file)
-response := &butler.Respond.Ok().Stream("video/mp4", reader)
+response := &butler.Respond.Ok().Stream(reader, "video/mp4")
 ```
 
 #### ButlerReader
