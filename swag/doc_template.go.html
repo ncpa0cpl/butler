@@ -17,37 +17,37 @@
 
 {{define "MethodBadge"}}
   {{if eq . "GET"}}
-    <span class="font-mono font-medium rounded-md inline-block bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 px-2 py-1 mr-2 text-xs">
+    <span class="methodbadge w-min font-mono font-medium rounded-md inline-block bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 px-2 py-1 mr-2 text-xs">
       {{.}}
     </span>
   {{end}}
   {{if eq . "POST"}}
-    <span class="font-mono font-medium rounded-md inline-block bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-2 py-1 mr-2 text-xs">
+    <span class="methodbadge w-min font-mono font-medium rounded-md inline-block bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-2 py-1 mr-2 text-xs">
       {{.}}
     </span>
   {{end}}
   {{if eq . "PUT"}}
-    <span class="font-mono font-medium rounded-md inline-block bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 px-2 py-1 mr-2 text-xs">
+    <span class="methodbadge w-min font-mono font-medium rounded-md inline-block bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 px-2 py-1 mr-2 text-xs">
       {{.}}
     </span>
   {{end}}
   {{if eq . "PATCH"}}
-    <span class="font-mono font-medium rounded-md inline-block bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300 px-2 py-1 mr-2 text-xs">
+    <span class="methodbadge w-min font-mono font-medium rounded-md inline-block bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300 px-2 py-1 mr-2 text-xs">
       {{.}}
     </span>
   {{end}}
   {{if eq . "DELETE"}}
-    <span class="font-mono font-medium rounded-md inline-block bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 px-2 py-1 mr-2 text-xs">
+    <span class="methodbadge w-min font-mono font-medium rounded-md inline-block bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 px-2 py-1 mr-2 text-xs">
       {{.}}
     </span>
   {{end}}
   {{if eq . "OPTIONS"}}
-    <span class="font-mono font-medium rounded-md inline-block bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300 px-2 py-1 mr-2 text-xs">
+    <span class="methodbadge w-min font-mono font-medium rounded-md inline-block bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300 px-2 py-1 mr-2 text-xs">
       {{.}}
     </span>
   {{end}}
   {{if eq . "HEAD"}}
-    <span class="font-mono font-medium rounded-md inline-block bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 px-2 py-1 mr-2 text-xs">
+    <span class="methodbadge w-min font-mono font-medium rounded-md inline-block bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 px-2 py-1 mr-2 text-xs">
       {{.}}
     </span>
   {{end}}
@@ -62,7 +62,7 @@
         <button
           is="cst-groupbtn"
           data-endpid="{{$entry.Uid}}"
-          class="flex items-center w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-300"
+          class="sidebarbtn flex items-center w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-300"
           style="padding-left: {{add (multiply $level 16) 16}}px"
         >
           {{template "MethodBadge" $entry.Method}}
@@ -235,6 +235,9 @@
         <title>{{.PageTitle}}</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+        <style>
+            .sidebarbtn { display: grid; grid-template-columns: 5em auto; }
+        </style>
     </head>
     <body>
         <main class="min-h-screen bg-slate-50 dark:bg-slate-900">
