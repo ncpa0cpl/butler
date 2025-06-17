@@ -12,14 +12,14 @@ package main
 import butler "github.com/ncpa0cpl/butler"
 
 func main() {
-	server := f.CreateServer()
+	server := butler.CreateServer()
 	server.Port = 8080
 
-	proxyEndpoint := &f.BasicEndpoint[f.NoParams]{
+	proxyEndpoint := &butler.BasicEndpoint[butler.NoParams]{
 		Method: "GET",
 		Path:   "/prx",
-		Handler: func(request *f.Request, params f.NoParams) *f.Response {
-			return f.Respond.Proxy("https://swapi.info/api/films")
+		Handler: func(request *butler.Request, params butler.NoParams) *butler.Response {
+			return butler.Respond.Proxy("https://swapi.info/api/films")
 		},
 	}
 
@@ -39,16 +39,16 @@ package main
 import butler "github.com/ncpa0cpl/butler"
 
 func main() {
-	server := f.CreateServer()
+	server := butler.CreateServer()
 	server.Port = 8080
 
-	proxyEndpoint := &f.BasicEndpoint[f.NoParams]{
+	proxyEndpoint := &butler.BasicEndpoint[butler.NoParams]{
 		Method: "GET",
 		Path:   "/prx",
-		Handler: func(request *f.Request, params f.NoParams) *f.Response {
+		Handler: func(request *butler.Request, params butler.NoParams) *butler.Response {
 			newBody := []byte("Send this text instead")
 
-			return f.Respond.Proxy("https://your.proxied/server", f.ProxyRequestOptions{
+			return butler.Respond.Proxy("https://your.proxied/server", f.ProxyRequestOptions{
 				Method:              "POST", // instead of GET
 				Body:                &newBody, // or set to empty []byte to send empty body
 				Headers:             map[string][]string{ "Authentication": {"Bearer XXX"} }, // add new headers
