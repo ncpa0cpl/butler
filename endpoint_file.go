@@ -179,4 +179,9 @@ func (g *FsEndpoint) GetDefaultCachePolicy() *HttpCachePolicy {
 	return g.CachePolicy
 }
 
-func (g *FsEndpoint) GetDefaultEncoding() string { return g.Encoding }
+func (g *FsEndpoint) GetDefaultEncoding() string {
+	if g.Encoding != "" {
+		return g.Encoding
+	}
+	return "auto"
+}

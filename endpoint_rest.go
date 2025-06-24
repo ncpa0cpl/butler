@@ -292,4 +292,9 @@ func (g *RestEndpoints[T, B]) GetBodyT() any                           { return 
 func (g *RestEndpoints[T, B]) GetResponseT() any                       { return nil }
 func (g *RestEndpoints[T, B]) GetResponseContentType() string          { return "application/json" }
 func (g *RestEndpoints[T, B]) GetDefaultCachePolicy() *HttpCachePolicy { return g.CachePolicy }
-func (g *RestEndpoints[T, B]) GetDefaultEncoding() string              { return g.Encoding }
+func (g *RestEndpoints[T, B]) GetDefaultEncoding() string {
+	if g.Encoding != "" {
+		return g.Encoding
+	}
+	return "auto"
+}

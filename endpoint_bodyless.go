@@ -126,4 +126,9 @@ func (g *BasicEndpoint[T]) GetDefaultCachePolicy() *HttpCachePolicy {
 	return g.CachePolicy
 }
 
-func (g *BasicEndpoint[T]) GetDefaultEncoding() string { return g.Encoding }
+func (g *BasicEndpoint[T]) GetDefaultEncoding() string {
+	if g.Encoding != "" {
+		return g.Encoding
+	}
+	return "auto"
+}

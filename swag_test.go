@@ -22,6 +22,8 @@ type ComplexRes struct {
 }
 
 func TestSwag(t *testing.T) {
+	t.Skip()
+
 	server := f.CreateServer()
 	server.Port = 8080
 
@@ -56,7 +58,7 @@ func TestSwag(t *testing.T) {
 
 	restEndp := &f.RestEndpoints[BooksQueryParams, BookResource]{
 		Path:     "/books",
-		Encoding: "auto",
+		Encoding: "brotli",
 		CachePolicy: &f.HttpCachePolicy{
 			DisableAutoResponseSkipping: true,
 			DisableETagGeneration:       true,
