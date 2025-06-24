@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	echo "github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"github.com/ncpa0cpl/butler/echo_middleware/cors"
 	"github.com/ncpa0cpl/butler/swag"
 )
@@ -97,6 +98,11 @@ func (server *Server) Add(endpoint EndpointInterface) {
 
 func (server *Server) Use(middleware Middleware) {
 	server.middlewares = append(server.middlewares, middleware)
+}
+
+// Automatically redirect all HTTP requests to a HTTPS equivalent
+func (server *Server) ForceHTTPS() {
+	server.echo.Pre(middleware.HTTPSRedirect())
 }
 
 // add a usage monitor to the app
