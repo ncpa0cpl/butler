@@ -275,7 +275,7 @@
                 Request Body
               </button>
             {{end}}  
-            {{if $hasResponse}}
+            {{if or $hasResponse (ne $entry.RespContentType "")}}
               <button data-tabid="response" class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 dark:text-white text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
                 Response
               </button>
@@ -338,7 +338,7 @@
           </div>
         {{end}}
 
-        {{if $hasResponse}}
+        {{if or $hasResponse (ne $entry.RespContentType "")}}
           <div data-tabid="response" class="tab-content {{if $showBtns}}hidden{{end}} mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
             <div class="rounded-lg border border-purple-700 dark:border-slate-600 bg-card text-card-foreground shadow-sm">
               <div class="flex flex-col space-y-1.5 p-6">
@@ -364,7 +364,9 @@
                       {{end}}
                     </p>
                   {{end}}
-                  <pre class="overflow-auto"><code class="text-sm dark:text-white">{{$entry.ResponseT.FormatHtml}}</code></pre>
+                  {{if $hasResponse}}
+                    <pre class="overflow-auto"><code class="text-sm dark:text-white">{{$entry.ResponseT.FormatHtml}}</code></pre>
+                  {{end}}
                 </div>
               </div>
             </div>
