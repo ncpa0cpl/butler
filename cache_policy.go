@@ -2,7 +2,10 @@ package butler
 
 import (
 	"fmt"
+	"strconv"
 	"time"
+
+	"github.com/ncpa0cpl/butler/swag"
 )
 
 type HttpCachePolicy struct {
@@ -100,4 +103,26 @@ func (policy HttpCachePolicy) ToString() string {
 		value = fmt.Sprintf("%s, stale-if-error=%v", value, int64(policy.StaleIfError.Seconds()))
 	}
 	return value
+}
+
+func (policy HttpCachePolicy) toSwagOptions() *swag.CacheOptions {
+	opts := swag.CacheOptions{
+		DisableAutoResponseSkipping: policy.DisableAutoResponseSkipping,
+		DisableETagGeneration:       policy.DisableETagGeneration,
+		MaxAge:                      strconv.FormatInt(int64(policy.MaxAge.Seconds()), 10),
+		SMaxAge:                     strconv.FormatInt(int64(policy.SMaxAge.Seconds()), 10),
+		StaleWhileRevalidate:        strconv.FormatInt(int64(policy.StaleWhileRevalidate.Seconds()), 10),
+		StaleIfError:                strconv.FormatInt(int64(policy.StaleIfError.Seconds()), 10),
+		Immutable:                   policy.Immutable,
+		NoStore:                     policy.NoStore,
+		NoCache:                     policy.NoCache,
+		MustRevalidate:              policy.MustRevalidate,
+		Private:                     policy.Private,
+		ProxyRevalidate:             policy.ProxyRevalidate,
+		MustUnderstand:              policy.MustUnderstand,
+		NoTransform:                 policy.NoTransform,
+		ExampleHeader:               policy.ToString(),
+	}
+
+	return &opts
 }

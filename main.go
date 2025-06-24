@@ -34,6 +34,9 @@ type EndpointInterface interface {
 	GetParamsT() any
 	GetBodyT() any
 	GetResponseT() any
+	GetResponseContentType() string
+	GetDefaultCachePolicy() *HttpCachePolicy
+	GetDefaultEncoding() string
 }
 
 type Server struct {
@@ -147,24 +150,31 @@ func sortEndpoints(a, b swag.EndpointData) int {
 	return 1
 }
 
-func mapEndpoints(engpoints []EndpointInterface) []swag.EndpointData {
-	endpData := make([]swag.EndpointData, 0, len(engpoints))
+func mapEndpoints(endpoints []EndpointInterface) []swag.EndpointData {
+	endpData := make([]swag.EndpointData, 0, len(endpoints))
 
-	for _, endpoint := range engpoints {
+	for _, endpoint := range endpoints {
 		sub := endpoint.GetSubRoutes()
 		uid, _ := uuid.NewV4()
-		endpData = append(endpData, swag.EndpointData{
-			Uid:         uid.String(),
-			Name:        endpoint.GetName(),
-			Description: endpoint.GetDescription(),
-			Path:        endpoint.GetPath(),
-			Method:      endpoint.GetMethod(),
-			ParamsT:     swag.NewParamsTypeStructure(endpoint.GetParamsT()),
-			BodyT:       swag.NewTypeStructure(endpoint.GetBodyT()),
-			ResponseT:   swag.NewTypeStructure(endpoint.GetResponseT()),
-			IsGroup:     len(sub) > 0,
-			Children:    mapEndpoints(sub),
-		})
+		d := swag.EndpointData{
+			Uid:             uid.String(),
+			Name:            endpoint.GetName(),
+			Description:     endpoint.GetDescription(),
+			Path:            endpoint.GetPath(),
+			Method:          endpoint.GetMethod(),
+			ParamsT:         swag.NewParamsTypeStructure(endpoint.GetParamsT()),
+			BodyT:           swag.NewTypeStructure(endpoint.GetBodyT()),
+			ResponseT:       swag.NewTypeStructure(endpoint.GetResponseT()),
+			RespContentType: endpoint.GetResponseContentType(),
+			Encoding:        endpoint.GetDefaultEncoding(),
+			IsGroup:         len(sub) > 0,
+			Children:        mapEndpoints(sub),
+		}
+		cachePolicy := endpoint.GetDefaultCachePolicy()
+		if cachePolicy != nil {
+			d.CacheOptions = cachePolicy.toSwagOptions()
+		}
+		endpData = append(endpData, d)
 	}
 
 	slices.SortFunc(endpData, sortEndpoints)

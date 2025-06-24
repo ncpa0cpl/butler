@@ -2,6 +2,7 @@ package swag
 
 import (
 	"fmt"
+	"html/template"
 	"reflect"
 	"strings"
 )
@@ -60,6 +61,53 @@ func (t TypeStructure) Format() string {
 	}
 
 	return "unknown"
+}
+
+func (t TypeStructure) FormatHtml(padding ...int) template.HTML {
+	var s template.HTML
+
+	padlen := 2
+	if len(padding) > 0 {
+		padlen += padding[0]
+	}
+
+	switch t.Kind {
+	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
+		return `<span class="text-blue-400">integer</span>`
+	case "float", "float32", "float64":
+		return `<span class="text-green-400">float</span>`
+	case "string":
+		return `<span class="text-orange-400">string</span>`
+	case "bool":
+		return `<span class="text-pink-400">boolean</span>`
+	case "struct":
+		s = `<span class="text-purple-500">{</span><br/>`
+		for _, child := range t.Children {
+			if child.Nullable {
+				s += template.HTML(fmt.Sprintf(`<span class="text-gray-700 dark:text-gray-300">%s"%s"</span><span class="text-purple-500">?:</span> %s<br/>`, pad(padlen), child.Name, child.FormatHtml(padlen)))
+			} else {
+				s += template.HTML(fmt.Sprintf(`<span class="text-gray-700 dark:text-gray-300">%s"%s"</span><span class="text-purple-500">:</span> %s<br/>`, pad(padlen), child.Name, child.FormatHtml(padlen)))
+			}
+		}
+		s += template.HTML(fmt.Sprintf(`<span class="text-purple-500">%s}</span>`, pad(padlen-2)))
+		return s
+	case "slice", "array":
+		s = `<span class="text-blue-400">Array</span><span class="text-purple-500">&lt;</span><br/>`
+		for _, child := range t.Children {
+			s += template.HTML(fmt.Sprintf(`%s%s<br/>`, pad(padlen), child.FormatHtml(padlen)))
+		}
+		s += template.HTML(fmt.Sprintf(`<span class="text-purple-500">%s&gt;</span>`, pad(padlen-2)))
+		return s
+	case "map":
+		s = `<span class="text-indigo-400">Map</span><span class="text-purple-500">&lt;</span><span class="text-orange-400">string</span><span class="text-purple-500">,</span><br/>`
+		for _, child := range t.Children {
+			s += template.HTML(fmt.Sprintf(`%s%s<br/>`, pad(padlen), child.FormatHtml(padlen)))
+		}
+		s += template.HTML(fmt.Sprintf(`<span class="text-purple-500">%s&gt;</span>`, pad(padlen-2)))
+		return s
+	}
+
+	return `<span class="text-gray-500">unknown</span>`
 }
 
 // NewTypeStructure generates a TypeStructure slice from a given interface{}.
@@ -137,7 +185,6 @@ func generateTypeStructure(t reflect.Type, name string, isParamsObject bool) Typ
 		key := generateTypeStructure(t.Key(), "key", isParamsObject)
 		value := generateTypeStructure(t.Elem(), "value", isParamsObject)
 		if value.Kind != "" && (key.Kind == "string" || isNumber(key.Kind)) {
-			ts.Name = key.Kind
 			value.Name = "element"
 			ts.Children = append(ts.Children, value)
 		}
@@ -171,4 +218,8 @@ func padLines(str string, startFromIdx int) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func pad(len int) string {
+	return strings.Repeat(" ", len)
 }

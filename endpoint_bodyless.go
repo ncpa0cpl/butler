@@ -19,6 +19,9 @@ type BasicEndpoint[T any] struct {
 
 	// Optional. Type assigned to this field will be used to generate the response type in the documentation
 	ResponseType any
+	// Optional. Type assigned to this field will be used to generate the response type in the documentation
+	// If ResponseType is provided and this field is empty, it will default to JSON
+	ResponseContentType string
 
 	bindParams paramBinder[T]
 	parent     EndpointParent
@@ -106,3 +109,21 @@ func (g *BasicEndpoint[T]) GetBodyT() any {
 func (g *BasicEndpoint[T]) GetResponseT() any {
 	return g.ResponseType
 }
+
+func (g *BasicEndpoint[T]) GetResponseContentType() string {
+	if g.ResponseContentType != "" {
+		return g.ResponseContentType
+	}
+
+	if g.ResponseType != nil {
+		return "application/json"
+	}
+
+	return ""
+}
+
+func (g *BasicEndpoint[T]) GetDefaultCachePolicy() *HttpCachePolicy {
+	return g.CachePolicy
+}
+
+func (g *BasicEndpoint[T]) GetDefaultEncoding() string { return g.Encoding }

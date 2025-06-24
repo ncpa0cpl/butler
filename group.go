@@ -75,6 +75,9 @@ func (g *Group) Register(server EndpointParent) {
 
 //
 
-func (g *Group) GetParamsT() any   { return nil }
-func (g *Group) GetBodyT() any     { return nil }
-func (g *Group) GetResponseT() any { return nil }
+func (g *Group) GetParamsT() any                         { return nil }
+func (g *Group) GetBodyT() any                           { return nil }
+func (g *Group) GetResponseT() any                       { return nil }
+func (g *Group) GetResponseContentType() string          { return "" }
+func (g *Group) GetDefaultCachePolicy() *HttpCachePolicy { return nil }
+func (g *Group) GetDefaultEncoding() string              { return "" }

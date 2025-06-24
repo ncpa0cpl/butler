@@ -258,9 +258,13 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) {
 
 	var zeroResp B
 	getEndpoint.ResponseType = zeroResp
+	getEndpoint.ResponseContentType = g.GetResponseContentType()
 	getListEndpoint.ResponseType = make([]B, 0)
+	getListEndpoint.ResponseContentType = g.GetResponseContentType()
 	postEndpoint.ResponseType = zeroResp
+	postEndpoint.ResponseContentType = g.GetResponseContentType()
 	putEndpoint.ResponseType = zeroResp
+	putEndpoint.ResponseContentType = g.GetResponseContentType()
 
 	endpoints := []EndpointInterface{
 		getEndpoint,
@@ -283,6 +287,9 @@ func getTypeName(myvar any) string {
 
 //
 
-func (g *RestEndpoints[T, B]) GetParamsT() any   { return nil }
-func (g *RestEndpoints[T, B]) GetBodyT() any     { return nil }
-func (g *RestEndpoints[T, B]) GetResponseT() any { return nil }
+func (g *RestEndpoints[T, B]) GetParamsT() any                         { return nil }
+func (g *RestEndpoints[T, B]) GetBodyT() any                           { return nil }
+func (g *RestEndpoints[T, B]) GetResponseT() any                       { return nil }
+func (g *RestEndpoints[T, B]) GetResponseContentType() string          { return "application/json" }
+func (g *RestEndpoints[T, B]) GetDefaultCachePolicy() *HttpCachePolicy { return g.CachePolicy }
+func (g *RestEndpoints[T, B]) GetDefaultEncoding() string              { return g.Encoding }

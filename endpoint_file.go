@@ -170,3 +170,13 @@ func (g *FsEndpoint) GetBodyT() any {
 func (g *FsEndpoint) GetResponseT() any {
 	return nil
 }
+
+func (g *FsEndpoint) GetResponseContentType() string {
+	return "application/octet-stream"
+}
+
+func (g *FsEndpoint) GetDefaultCachePolicy() *HttpCachePolicy {
+	return g.CachePolicy
+}
+
+func (g *FsEndpoint) GetDefaultEncoding() string { return g.Encoding }
