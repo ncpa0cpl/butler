@@ -98,6 +98,50 @@ func (p *NumberQParam) Init(ctx *Request, name string) *ParamParsingError {
 	return nil
 }
 
+type FloatQParam struct {
+	value float64
+	isSet bool
+}
+
+func (p *FloatQParam) IsQueryParam() bool {
+	return true
+}
+
+func (p *FloatQParam) AcceptedKind() string {
+	return reflect.Float64.String()
+}
+
+// True if the request contained this param
+func (p *FloatQParam) Has() bool {
+	return p.isSet
+}
+
+func (p *FloatQParam) Get(defaultValue ...float64) float64 {
+	if !p.isSet && len(defaultValue) > 0 {
+		return defaultValue[0]
+	}
+	return p.value
+}
+
+func (p *FloatQParam) Set(value string) *ParamParsingError {
+	num, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return &ParamParsingError{400, "Bad Request", "parsing to number failed", ""}
+	}
+
+	p.value = num
+	p.isSet = true
+	return nil
+}
+
+func (p *FloatQParam) Init(ctx *Request, name string) *ParamParsingError {
+	v := ctx.EchoContext().QueryParam(name)
+	if v != "" {
+		return p.Set(v)
+	}
+	return nil
+}
+
 type BoolQParam struct {
 	value bool
 	isSet bool
@@ -193,6 +237,38 @@ func (p *NumberUrlParam) Set(value string) *ParamParsingError {
 }
 
 func (p *NumberUrlParam) Init(ctx *Request, name string) *ParamParsingError {
+	v := ctx.EchoContext().Param(name)
+	if v != "" {
+		return p.Set(v)
+	}
+	return nil
+}
+
+type FloatUrlParam struct {
+	value float64
+	isSet bool
+}
+
+func (p *FloatUrlParam) AcceptedKind() string {
+	return reflect.Float64.String()
+}
+
+func (p *FloatUrlParam) Get() float64 {
+	return p.value
+}
+
+func (p *FloatUrlParam) Set(value string) *ParamParsingError {
+	num, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return &ParamParsingError{400, "Bad Request", "parsing to number failed", ""}
+	}
+
+	p.value = num
+	p.isSet = true
+	return nil
+}
+
+func (p *FloatUrlParam) Init(ctx *Request, name string) *ParamParsingError {
 	v := ctx.EchoContext().Param(name)
 	if v != "" {
 		return p.Set(v)
