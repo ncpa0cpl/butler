@@ -13,6 +13,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/ncpa0cpl/butler/echo_middleware/cors"
 	"github.com/ncpa0cpl/butler/swag"
+	"golang.org/x/crypto/acme/autocert"
 )
 
 type EndpointParent interface {
@@ -119,6 +120,29 @@ func (server *Server) Listen() error {
 	server.echo.Use(cors.CORSWithConfig(server.Cors.config))
 
 	err := server.echo.Start(fmt.Sprintf(":%v", server.Port))
+	if err != nil {
+		server.echo.Logger.Error(err)
+	}
+	return err
+}
+
+func (server *Server) ListenTLS(certFile any, keyFile any) error {
+	server.echo.Use(cors.CORSWithConfig(server.Cors.config))
+
+	err := server.echo.StartTLS(fmt.Sprintf(":%v", server.Port), certFile, keyFile)
+	if err != nil {
+		server.echo.Logger.Error(err)
+	}
+	return err
+}
+
+func (server *Server) ListenAutoTLS(dirCache string, allowedHosts ...string) error {
+	server.echo.Use(cors.CORSWithConfig(server.Cors.config))
+
+	server.echo.AutoTLSManager.Cache = autocert.DirCache(dirCache)
+	server.echo.AutoTLSManager.HostPolicy = autocert.HostWhitelist(allowedHosts...)
+
+	err := server.echo.StartAutoTLS(fmt.Sprintf(":%v", server.Port))
 	if err != nil {
 		server.echo.Logger.Error(err)
 	}
