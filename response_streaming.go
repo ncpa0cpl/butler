@@ -2,18 +2,26 @@ package butler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
+	"syscall"
 
 	echo "github.com/labstack/echo/v4"
 )
 
 type StreamingSettings struct {
-	ChunkSize        uint
+	// Determines how often the data is flushed. For example if set to 1MB, connection will be flushed after writing to
+	// it 1MB of data (or less if there's nothing more to send)
+	//
+	// Default is 256KB
+	ChunkSize uint
+	// Default is 5
 	KeepAliveTimeout uint
-	KeepAliveMax     uint
+	// Default is 1000
+	KeepAliveMax uint
 }
 
 var DEFAULT_STREAMING_SETTINGS StreamingSettings = StreamingSettings{
@@ -130,13 +138,17 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 			var buff []byte
 			done, err := reader.Read(nextChunk, &buff)
 			if err != nil {
+				request.Logger.Error("encountered an unexpected error when reading from the butlerReader ", err)
 				return err
 			}
 
 			_, err = writer.Write(buff)
 			if err != nil {
-				request.Logger.Error("encountered an unexpected error when writing to the http.ResponseWriter")
-				return err
+				if !errors.Is(err, syscall.EPIPE) && errors.Is(err, syscall.ECONNRESET) {
+					request.Logger.Error("encountered an unexpected error when writing to the http.ResponseWriter ", err)
+					return err
+				}
+				return nil
 			}
 
 			flusher.Flush()
@@ -152,8 +164,11 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 
 		_, err = writer.Write(buff)
 		if err != nil {
-			request.Logger.Error("encountered an unexpected error when writing to the http.ResponseWriter")
-			return err
+			if !errors.Is(err, syscall.EPIPE) && errors.Is(err, syscall.ECONNRESET) {
+				request.Logger.Error("encountered an unexpected error when writing to the http.ResponseWriter ", err)
+				return err
+			}
+			return nil
 		}
 
 		flusher.Flush()
