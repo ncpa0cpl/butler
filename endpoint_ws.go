@@ -31,7 +31,8 @@ type WebSocketEndpoint struct {
 	Description string
 	Name        string
 
-	parent EndpointParent
+	middlewares []Middleware
+	parent      EndpointParent
 }
 
 func (e *WebSocketEndpoint) GetName() string {
@@ -71,7 +72,11 @@ func (e *WebSocketEndpoint) GetStreamingSettings() *StreamingSettings {
 }
 
 func (e *WebSocketEndpoint) GetMiddlewares() []Middleware {
-	return []Middleware{}
+	return e.middlewares
+}
+
+func (e *WebSocketEndpoint) Use(middleware Middleware) {
+	e.middlewares = append(e.middlewares, middleware)
 }
 
 func (e *WebSocketEndpoint) ExecuteHandler(ctx echo.Context, request *Request) error {

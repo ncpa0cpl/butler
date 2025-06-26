@@ -1,7 +1,7 @@
 package swag
 
 import (
-	"github.com/labstack/echo/v4"
+	"fmt"
 )
 
 type CacheOptions struct {
@@ -39,15 +39,12 @@ type EndpointData struct {
 	ResponseT       TypeStructure
 }
 
-func CreateApiDocumentation(path string, endpoints []EndpointData, e *echo.Echo, m ...echo.MiddlewareFunc) {
+func CreateApiDocumentation(endpoints []EndpointData) ([]byte, error) {
 	html, err := generateDocPage(endpoints)
 
 	if err != nil {
-		e.Logger.Error("failed to generate a api doc page: ", err)
-		return
+		return nil, fmt.Errorf("failed to generate a api doc page: %v", err)
 	}
 
-	e.GET(path, func(ctx echo.Context) error {
-		return ctx.HTMLBlob(200, html)
-	}, m...)
+	return html, nil
 }

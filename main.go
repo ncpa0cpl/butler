@@ -208,6 +208,25 @@ func mapEndpoints(endpoints []EndpointInterface) []swag.EndpointData {
 	return endpData
 }
 
-func AddApiDocumentationRoute(path string, server *Server, m ...echo.MiddlewareFunc) {
-	swag.CreateApiDocumentation(path, mapEndpoints(server.endpoints), server.echo, m...)
+func AddApiDocumentationRoute(path string, server *Server, m ...Middleware) error {
+	html, err := swag.CreateApiDocumentation(mapEndpoints(server.endpoints))
+	if err != nil {
+		return err
+	}
+
+	endp := BasicEndpoint[NoParams]{
+		Method: "GET",
+		Path:   path,
+		Handler: func(request *Request, params NoParams) *Response {
+			return Respond.Ok().Bytes(html, "text/html")
+		},
+	}
+
+	for _, middleware := range m {
+		endp.Use(middleware)
+	}
+
+	server.Add(&endp)
+
+	return nil
 }

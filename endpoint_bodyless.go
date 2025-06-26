@@ -23,8 +23,9 @@ type BasicEndpoint[T any] struct {
 	// If ResponseType is provided and this field is empty, it will default to JSON
 	ResponseContentType string
 
-	bindParams paramBinder[T]
-	parent     EndpointParent
+	middlewares []Middleware
+	bindParams  paramBinder[T]
+	parent      EndpointParent
 }
 
 func (e *BasicEndpoint[T]) GetName() string {
@@ -64,7 +65,11 @@ func (e *BasicEndpoint[T]) GetStreamingSettings() *StreamingSettings {
 }
 
 func (e *BasicEndpoint[T]) GetMiddlewares() []Middleware {
-	return []Middleware{}
+	return e.middlewares
+}
+
+func (e *BasicEndpoint[T]) Use(middleware Middleware) {
+	e.middlewares = append(e.middlewares, middleware)
 }
 
 func (e *BasicEndpoint[T]) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
