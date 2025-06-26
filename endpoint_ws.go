@@ -16,9 +16,9 @@ type WebSocketEndpoint struct {
 	Path       string
 	Auth       AuthHandler
 	MaxMsgSize int64
-	// Default: 30 seconds
+	// Default: 60 seconds
 	PongTimeout time.Duration
-	// Default: 30 seconds
+	// Default: 20 seconds
 	PingInterval time.Duration
 	// Default: 30 seconds
 	WriteTimeout time.Duration
@@ -85,10 +85,10 @@ func (e *WebSocketEndpoint) ExecuteHandler(ctx echo.Context, request *Request) e
 	}
 
 	if e.PingInterval == 0 {
-		e.PingInterval = 30 * time.Second
+		e.PingInterval = 20 * time.Second
 	}
 	if e.PongTimeout == 0 {
-		e.PongTimeout = 30 * time.Second
+		e.PongTimeout = 60 * time.Second
 	}
 	if e.WriteTimeout == 0 {
 		e.WriteTimeout = 30 * time.Second
