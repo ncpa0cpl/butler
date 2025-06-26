@@ -180,6 +180,7 @@ func mapEndpoints(endpoints []EndpointInterface) []swag.EndpointData {
 	for _, endpoint := range endpoints {
 		sub := endpoint.GetSubRoutes()
 		uid, _ := uuid.NewV4()
+		_, isWs := endpoint.(*WebSocketEndpoint)
 		d := swag.EndpointData{
 			Uid:             uid.String(),
 			Name:            endpoint.GetName(),
@@ -191,6 +192,7 @@ func mapEndpoints(endpoints []EndpointInterface) []swag.EndpointData {
 			ResponseT:       swag.NewTypeStructure(endpoint.GetResponseT()),
 			RespContentType: endpoint.GetResponseContentType(),
 			Encoding:        endpoint.GetDefaultEncoding(),
+			IsWs:            isWs,
 			IsGroup:         len(sub) > 0,
 			Children:        mapEndpoints(sub),
 		}

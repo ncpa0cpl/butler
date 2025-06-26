@@ -29,6 +29,7 @@ type EndpointData struct {
 	Children        []EndpointData
 	Method          string
 	Path            string
+	IsWs            bool
 	IsGroup         bool
 	RespContentType string
 	CacheOptions    *CacheOptions

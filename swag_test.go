@@ -66,9 +66,17 @@ func TestSwag(t *testing.T) {
 		Resource: BookResource{},
 	}
 
+	wsEndp := &f.WebSocketEndpoint{
+		Path: "/ws",
+		OnOpen: func(ws *f.Websocket) error {
+			return nil
+		},
+	}
+
 	server.Add(authors)
 	server.Add(books)
 	server.Add(restEndp)
+	server.Add(wsEndp)
 
 	f.AddApiDocumentationRoute("/api_docs", server)
 
