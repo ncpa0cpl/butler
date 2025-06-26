@@ -22,6 +22,7 @@ type Websocket struct {
 	open           bool
 	sendChannel    chan sendMessage
 	readingStarted bool
+	logger         RequestLogger
 
 	msgReceivers   eventEmitter[WebsocketMessage]
 	closeReceivers eventEmitter[CloseMessage]
@@ -32,9 +33,19 @@ func newWebsocket(request *Request, conn *websocket.Conn, pingInterval, pongTime
 	conn.SetPongHandler(func(string) error { conn.SetReadDeadline(time.Now().Add(pongTimeout)); return nil })
 
 	ws := Websocket{
-		conn:        conn,
-		open:        true,
-		sendChannel: make(chan sendMessage, 16),
+		conn:           conn,
+		open:           true,
+		sendChannel:    make(chan sendMessage, 16),
+		logger:         request.Logger,
+		readingStarted: false,
+		msgReceivers: eventEmitter[WebsocketMessage]{
+			mx:        sync.Mutex{},
+			listeners: make([]listener[WebsocketMessage], 0),
+		},
+		closeReceivers: eventEmitter[CloseMessage]{
+			mx:        sync.Mutex{},
+			listeners: make([]listener[CloseMessage], 0),
+		},
 	}
 
 	var mutex sync.Mutex
@@ -102,6 +113,9 @@ func (ws *Websocket) startReading() {
 		for ws.open {
 			t, content, err := ws.conn.ReadMessage()
 			if err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					ws.logger.Error(err)
+				}
 				ws.closeReceivers.EmitAndClose(CloseMessage{
 					err,
 				})

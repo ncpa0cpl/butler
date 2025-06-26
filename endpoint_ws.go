@@ -13,11 +13,14 @@ import (
 var upgrader = websocket.Upgrader{}
 
 type WebSocketEndpoint struct {
-	Path         string
-	Auth         AuthHandler
-	MaxMsgSize   int64
-	PongTimeout  time.Duration
+	Path       string
+	Auth       AuthHandler
+	MaxMsgSize int64
+	// Default: 30 seconds
+	PongTimeout time.Duration
+	// Default: 30 seconds
 	PingInterval time.Duration
+	// Default: 30 seconds
 	WriteTimeout time.Duration
 	OnOpen       func(ws *Websocket) error
 	// Optional. A function that runs just before the connection is upgraded to a WebSocket,
@@ -79,6 +82,16 @@ func (e *WebSocketEndpoint) ExecuteHandler(ctx echo.Context, request *Request) e
 
 	if e.MaxMsgSize != 0 {
 		ws.SetReadLimit(e.MaxMsgSize)
+	}
+
+	if e.PingInterval == 0 {
+		e.PingInterval = 30 * time.Second
+	}
+	if e.PongTimeout == 0 {
+		e.PongTimeout = 30 * time.Second
+	}
+	if e.WriteTimeout == 0 {
+		e.WriteTimeout = 30 * time.Second
 	}
 
 	return e.OnOpen(newWebsocket(request, ws, e.PingInterval, e.PongTimeout, e.WriteTimeout))
