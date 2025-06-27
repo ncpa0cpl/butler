@@ -12,11 +12,14 @@ type UsageRecordStep struct {
 }
 
 type UsageRecord struct {
-	// url path of the endpoint
+	Method string
+	// url path requested by the client (e.x. /api/book/123)
 	UrlPath string
-	Steps   []UsageRecordStep
-	Start   *time.Time
-	End     *time.Time
+	// the pattern as provided to the Endpoint and/or the Groups  (e.x. /api/book/:id)
+	PathPattern string
+	Steps       []UsageRecordStep
+	Start       *time.Time
+	End         *time.Time
 }
 
 type UsageMonitor interface {
@@ -30,13 +33,13 @@ type RecordBuilder interface {
 }
 
 type monitorRecorder interface {
-	CreateRecord(urlpath string) RecordBuilder
+	CreateRecord(method, routePattern, urlpath string) RecordBuilder
 	FinalizeRecord(RecordBuilder)
 }
 
 type voidRecorder struct{}
 
-func (voidRecorder) CreateRecord(urlpath string) RecordBuilder {
+func (voidRecorder) CreateRecord(method, routePattern, urlpath string) RecordBuilder {
 	return &voidRecord{}
 }
 
@@ -56,12 +59,14 @@ type usageMonitorRecorder struct {
 	usageMonitor UsageMonitor
 }
 
-func (usageMonitorRecorder) CreateRecord(urlpath string) RecordBuilder {
+func (usageMonitorRecorder) CreateRecord(method, routePattern, urlpath string) RecordBuilder {
 	now := time.Now()
 	rec := UsageRecord{
-		UrlPath: urlpath,
-		Steps:   []UsageRecordStep{},
-		Start:   &now,
+		Method:      method,
+		PathPattern: routePattern,
+		UrlPath:     urlpath,
+		Steps:       []UsageRecordStep{},
+		Start:       &now,
 	}
 
 	return &usageMonitorRecord{&rec}

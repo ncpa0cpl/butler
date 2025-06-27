@@ -1,6 +1,7 @@
 package butler_test
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -9,11 +10,29 @@ import (
 )
 
 type TestMonitor struct {
+	mutex   sync.Mutex
 	records []f.UsageRecord
 }
 
 func (tm *TestMonitor) Record(entry *f.UsageRecord) {
+	tm.mutex.Lock()
+	defer tm.mutex.Unlock()
+
 	tm.records = append(tm.records, *entry)
+}
+
+func (tm *TestMonitor) Len() int {
+	tm.mutex.Lock()
+	defer tm.mutex.Unlock()
+
+	return len(tm.records)
+}
+
+func (tm *TestMonitor) Get(idx int) f.UsageRecord {
+	tm.mutex.Lock()
+	defer tm.mutex.Unlock()
+
+	return tm.records[idx]
 }
 
 func TestUsageMonitor(t *testing.T) {
@@ -40,6 +59,18 @@ func TestUsageMonitor(t *testing.T) {
 		},
 	}
 
+	bookById := &f.BasicEndpoint[f.NoParams]{
+		Method:   "GET",
+		Path:     "/books/:id",
+		Encoding: "gzip",
+		CachePolicy: &f.HttpCachePolicy{
+			MaxAge: time.Hour,
+		},
+		Handler: func(request *f.Request, params f.NoParams) *f.Response {
+			return f.Respond.Ok().Html(HTML_SAMPLE)
+		},
+	}
+
 	group := &f.Group{
 		Path: "/api",
 	}
@@ -55,6 +86,7 @@ func TestUsageMonitor(t *testing.T) {
 	})
 
 	group.Add(books)
+	group.Add(bookById)
 	server.Add(group)
 
 	go server.Listen()
@@ -64,20 +96,23 @@ func TestUsageMonitor(t *testing.T) {
 	assert.Equal(200, resp.StatusCode)
 
 	waitUntil(func() bool {
-		return len(monitor.records) == 1
+		return monitor.Len() == 1
 	})
 
-	assert.Equal("/api/books", monitor.records[0].UrlPath)
-	assert.NotNil(monitor.records[0].Start)
-	assert.NotNil(monitor.records[0].End)
-	assert.Equal(6, len(monitor.records[0].Steps))
+	record1 := monitor.Get(0)
 
-	authStep := monitor.records[0].Steps[0]
-	reqMdStep := monitor.records[0].Steps[1]
-	handlerStem := monitor.records[0].Steps[2]
-	resMdStep := monitor.records[0].Steps[3]
-	etagStep := monitor.records[0].Steps[4]
-	encodeStep := monitor.records[0].Steps[5]
+	assert.Equal("GET", record1.Method)
+	assert.Equal("/api/books", record1.UrlPath)
+	assert.NotNil(record1.Start)
+	assert.NotNil(record1.End)
+	assert.Equal(6, len(record1.Steps))
+
+	authStep := record1.Steps[0]
+	reqMdStep := record1.Steps[1]
+	handlerStem := record1.Steps[2]
+	resMdStep := record1.Steps[3]
+	etagStep := record1.Steps[4]
+	encodeStep := record1.Steps[5]
 
 	assert.Equal("auth", authStep.Step)
 	assert.Equal("", authStep.Name)
@@ -108,4 +143,16 @@ func TestUsageMonitor(t *testing.T) {
 	assert.Equal("", encodeStep.Name)
 	assert.NotNil(encodeStep.Start)
 	assert.NotNil(encodeStep.End)
+
+	_, resp = request("GET", "http://localhost:8080/api/books/12", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+
+	waitUntil(func() bool {
+		return monitor.Len() == 2
+	})
+
+	record2 := monitor.Get(1)
+
+	assert.Equal("/api/books/12", record2.UrlPath)
+	assert.Equal("/api/books/:id", record2.PathPattern)
 }

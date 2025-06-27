@@ -30,7 +30,7 @@ func NewRequest(ctx echo.Context, monitor monitorRecorder) *Request {
 	req := &Request{
 		ctx:           ctx,
 		monitor:       monitor,
-		monitorRecord: monitor.CreateRecord(path),
+		monitorRecord: monitor.CreateRecord(method, ctx.Path(), path),
 		Path:          path,
 		Method:        method,
 		Data:          map[string]any{},
