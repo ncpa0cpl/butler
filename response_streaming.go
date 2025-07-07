@@ -75,7 +75,7 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 	if requestedRange == nil {
 		requestedRange = &Range{
 			Start:    0,
-			End:      dataSize - 1,
+			End:      max(0, dataSize-1),
 			HasStart: true,
 			HasEnd:   true,
 		}
@@ -85,7 +85,15 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 	}
 
 	if !requestedRange.HasEnd {
-		requestedRange.End = dataSize - 1
+		requestedRange.End = max(0, dataSize-1)
+	}
+
+	writer := ctx.Response().Writer
+
+	if requestedRange.Start == requestedRange.End {
+		respH.Set("Content-Length", "0")
+		writer.WriteHeader(resp.Status)
+		return nil
 	}
 
 	endIdx := min(dataSize-1, requestedRange.End)
@@ -105,8 +113,6 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 		ctx.NoContent(400)
 		return err
 	}
-
-	writer := ctx.Response().Writer
 
 	maxChunkSize := int(settings.ChunkSize)
 
