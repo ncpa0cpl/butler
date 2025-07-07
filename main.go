@@ -11,10 +11,16 @@ import (
 	"github.com/labstack/echo-contrib/session"
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/gommon/log"
 	"github.com/ncpa0cpl/butler/echo_middleware/cors"
 	"github.com/ncpa0cpl/butler/swag"
 	"golang.org/x/crypto/acme/autocert"
 )
+
+type LogHandler interface {
+	OnLog(loglevel log.Lvl, request *Request, message []any) []any
+	OnLogf(loglevel log.Lvl, request *Request, message string, fargs []any) (string, []any)
+}
 
 type EndpointParent interface {
 	GetServer() *Server
@@ -22,6 +28,7 @@ type EndpointParent interface {
 	GetMiddlewares() []Middleware
 	GetPath() string
 	GetAuthHandlers() []AuthHandler
+	GetReqLogHandler() LogHandler
 }
 
 type EndpointInterface interface {
@@ -41,12 +48,13 @@ type EndpointInterface interface {
 }
 
 type Server struct {
-	Cors         *CorsSettings
-	Port         int
-	echo         *echo.Echo
-	endpoints    []EndpointInterface
-	middlewares  []Middleware
-	usageMonitor UsageMonitor
+	Cors                 *CorsSettings
+	Port                 int
+	echo                 *echo.Echo
+	endpoints            []EndpointInterface
+	middlewares          []Middleware
+	usageMonitor         UsageMonitor
+	requestLoggerHandler LogHandler
 }
 
 func CreateServer() *Server {
@@ -93,6 +101,10 @@ func (server *Server) GetAuthHandlers() []AuthHandler {
 
 func (server *Server) GetServer() *Server {
 	return server
+}
+
+func (server *Server) GetReqLogHandler() LogHandler {
+	return server.requestLoggerHandler
 }
 
 func (server *Server) Add(endpoint EndpointInterface) {
@@ -151,6 +163,13 @@ func (server *Server) ListenAutoTLS(dirCache string, allowedHosts ...string) err
 
 func (server *Server) Close() {
 	server.echo.Close()
+}
+
+// add a handler function that can intercept logs made within request handlers, modify them or act on them
+//
+// log handlers are given access to the *butler.Request but should not modify the http.Request or http.Response
+func (server *Server) OnRequestLog(handler LogHandler) {
+	server.requestLoggerHandler = handler
 }
 
 func sortEndpoints(a, b swag.EndpointData) int {

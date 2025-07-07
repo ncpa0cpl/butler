@@ -12,13 +12,15 @@ import (
 )
 
 type RequestLogger struct {
-	logger echo.Logger
-	method string
-	path   string
+	logger      echo.Logger
+	request     *Request
+	method      string
+	path        string
+	userHandler LogHandler
 }
 
-func newRequestLogger(method, path string, l echo.Logger) RequestLogger {
-	return RequestLogger{l, method, path}
+func newRequestLogger(request *Request, l echo.Logger) RequestLogger {
+	return RequestLogger{l, request, request.Method, request.Path, request.parent.GetReqLogHandler()}
 }
 
 func (l RequestLogger) addPrefix(msg []any) []any {
@@ -33,71 +35,113 @@ func (l RequestLogger) addFmtPrefix(msg string, args []any) (string, []any) {
 
 func (l RequestLogger) Info(msg ...any) {
 	msg = l.addPrefix(msg)
+	if l.userHandler != nil {
+		msg = l.userHandler.OnLog(LogLevel.Info, l.request, msg)
+	}
 	l.logger.Info(msg...)
 }
 
 func (l RequestLogger) Infof(msg string, args ...any) {
 	msg, args = l.addFmtPrefix(msg, args)
+	if l.userHandler != nil {
+		msg, args = l.userHandler.OnLogf(LogLevel.Info, l.request, msg, args)
+	}
 	l.logger.Infof(msg, args...)
 }
 
 func (l RequestLogger) Debug(msg ...any) {
 	msg = l.addPrefix(msg)
+	if l.userHandler != nil {
+		msg = l.userHandler.OnLog(LogLevel.Debug, l.request, msg)
+	}
 	l.logger.Debug(msg...)
 }
 
 func (l RequestLogger) Debugf(msg string, args ...any) {
 	msg, args = l.addFmtPrefix(msg, args)
+	if l.userHandler != nil {
+		msg, args = l.userHandler.OnLogf(LogLevel.Debug, l.request, msg, args)
+	}
 	l.logger.Debugf(msg, args...)
 }
 
 func (l RequestLogger) Print(msg ...any) {
 	msg = l.addPrefix(msg)
+	if l.userHandler != nil {
+		msg = l.userHandler.OnLog(LogLevel.Print, l.request, msg)
+	}
 	l.logger.Print(msg...)
 }
 
 func (l RequestLogger) Printf(msg string, args ...any) {
 	msg, args = l.addFmtPrefix(msg, args)
+	if l.userHandler != nil {
+		msg, args = l.userHandler.OnLogf(LogLevel.Print, l.request, msg, args)
+	}
 	l.logger.Printf(msg, args...)
 }
 
 func (l RequestLogger) Warn(msg ...any) {
 	msg = l.addPrefix(msg)
+	if l.userHandler != nil {
+		msg = l.userHandler.OnLog(LogLevel.Warn, l.request, msg)
+	}
 	l.logger.Warn(msg...)
 }
 
 func (l RequestLogger) Warnf(msg string, args ...any) {
 	msg, args = l.addFmtPrefix(msg, args)
+	if l.userHandler != nil {
+		msg, args = l.userHandler.OnLogf(LogLevel.Warn, l.request, msg, args)
+	}
 	l.logger.Warnf(msg, args...)
 }
 
 func (l RequestLogger) Error(msg ...any) {
 	msg = l.addPrefix(msg)
+	if l.userHandler != nil {
+		msg = l.userHandler.OnLog(LogLevel.Error, l.request, msg)
+	}
 	l.logger.Error(msg...)
 }
 
 func (l RequestLogger) Errorf(msg string, args ...any) {
 	msg, args = l.addFmtPrefix(msg, args)
+	if l.userHandler != nil {
+		msg, args = l.userHandler.OnLogf(LogLevel.Error, l.request, msg, args)
+	}
 	l.logger.Errorf(msg, args...)
 }
 
 func (l RequestLogger) Fatal(msg ...any) {
 	msg = l.addPrefix(msg)
+	if l.userHandler != nil {
+		msg = l.userHandler.OnLog(LogLevel.Fatal, l.request, msg)
+	}
 	l.logger.Fatal(msg...)
 }
 
 func (l RequestLogger) Fatalf(msg string, args ...any) {
 	msg, args = l.addFmtPrefix(msg, args)
+	if l.userHandler != nil {
+		msg, args = l.userHandler.OnLogf(LogLevel.Fatal, l.request, msg, args)
+	}
 	l.logger.Fatalf(msg, args...)
 }
 
 func (l RequestLogger) Panic(msg ...any) {
 	msg = l.addPrefix(msg)
+	if l.userHandler != nil {
+		msg = l.userHandler.OnLog(LogLevel.Panic, l.request, msg)
+	}
 	l.logger.Panic(msg...)
 }
 
 func (l RequestLogger) Panicf(msg string, args ...any) {
 	msg, args = l.addFmtPrefix(msg, args)
+	if l.userHandler != nil {
+		msg, args = l.userHandler.OnLogf(LogLevel.Panic, l.request, msg, args)
+	}
 	l.logger.Panicf(msg, args...)
 }
 

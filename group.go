@@ -53,6 +53,10 @@ func (g *Group) GetSubRoutes() []EndpointInterface {
 	return g.routes
 }
 
+func (g *Group) GetReqLogHandler() LogHandler {
+	return g.parent.GetReqLogHandler()
+}
+
 func (g *Group) Add(endpoint EndpointInterface) {
 	g.routes = append(g.routes, endpoint)
 }

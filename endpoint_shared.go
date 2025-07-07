@@ -48,7 +48,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 	}
 
 	handler := func(ctx echo.Context) error {
-		request := NewRequest(ctx, monitor)
+		request := NewRequest(ctx, monitor, parent)
 		defer request.completeMonitor()
 
 		perr := e.BindParams(request)

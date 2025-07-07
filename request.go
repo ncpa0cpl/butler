@@ -21,9 +21,14 @@ type Request struct {
 	monitorRecord    RecordBuilder
 	ctx              echo.Context
 	accessedSessions []*sessions.Session
+	parent           EndpointParent
 }
 
-func NewRequest(ctx echo.Context, monitor monitorRecorder) *Request {
+func NewRequest(
+	ctx echo.Context,
+	monitor monitorRecorder,
+	parent EndpointParent,
+) *Request {
 	path := ctx.Request().URL.Path
 	method := ctx.Request().Method
 
@@ -35,8 +40,10 @@ func NewRequest(ctx echo.Context, monitor monitorRecorder) *Request {
 		Method:        method,
 		Data:          map[string]any{},
 		Headers:       ctx.Request().Header,
-		Logger:        newRequestLogger(method, path, ctx.Logger()),
+		parent:        parent,
 	}
+
+	req.Logger = newRequestLogger(req, ctx.Logger())
 
 	return req
 }

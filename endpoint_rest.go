@@ -82,6 +82,10 @@ func (g *RestEndpoints[T, B]) GetServer() *Server {
 	return g.parent.GetServer()
 }
 
+func (g *RestEndpoints[T, B]) GetReqLogHandler() LogHandler {
+	return g.parent.GetReqLogHandler()
+}
+
 func (g *RestEndpoints[T, B]) Use(middleware Middleware) {
 	g.middlewares = append(g.middlewares, middleware)
 }

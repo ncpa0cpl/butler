@@ -131,7 +131,7 @@ func (e *WebSocketEndpoint) Register(parent EndpointParent) {
 	}
 
 	handler := func(ctx echo.Context) error {
-		request := NewRequest(ctx, monitor)
+		request := NewRequest(ctx, monitor, parent)
 
 		defer func() {
 			if r := recover(); r != nil {
