@@ -8,6 +8,8 @@ import (
 	echo "github.com/labstack/echo/v4"
 )
 
+const ENDPOINT_REQ_PARAMS_KEY = "__endpoint_req_params_interface"
+
 type AnyEndpoint interface {
 	GetPath() string
 	GetMethod() string
@@ -17,6 +19,7 @@ type AnyEndpoint interface {
 	GetCachePolicy() *HttpCachePolicy
 	GetStreamingSettings() *StreamingSettings
 	GetMiddlewares() []Middleware
+	BindParams(request *Request) *ParamParsingError
 }
 
 func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
@@ -47,6 +50,12 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 	handler := func(ctx echo.Context) error {
 		request := NewRequest(ctx, monitor)
 		defer request.completeMonitor()
+
+		perr := e.BindParams(request)
+		if perr != nil {
+			request.Logger.Error(perr.ToString())
+			return perr.Response().send(request)
+		}
 
 		defer func() {
 			if r := recover(); r != nil {

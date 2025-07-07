@@ -79,6 +79,10 @@ func (e *WebSocketEndpoint) Use(middleware Middleware) {
 	e.middlewares = append(e.middlewares, middleware)
 }
 
+func (e *WebSocketEndpoint) BindParams(*Request) *ParamParsingError {
+	return nil
+}
+
 func (e *WebSocketEndpoint) ExecuteHandler(ctx echo.Context, request *Request) error {
 	ws, err := upgrader.Upgrade(ctx.Response(), ctx.Request(), nil)
 	if err != nil {

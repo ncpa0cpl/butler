@@ -1,6 +1,8 @@
 package butler
 
-import echo "github.com/labstack/echo/v4"
+import (
+	echo "github.com/labstack/echo/v4"
+)
 
 type BasicEndpoint[T any] struct {
 	Method string
@@ -72,17 +74,23 @@ func (e *BasicEndpoint[T]) Use(middleware Middleware) {
 	e.middlewares = append(e.middlewares, middleware)
 }
 
-func (e *BasicEndpoint[T]) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
+func (e *BasicEndpoint[T]) BindParams(request *Request) *ParamParsingError {
 	if e.bindParams == nil {
 		e.bindParams = CreateSearchParamsBinder[T]()
 	}
 
 	params, err := e.bindParams(request)
 	if err != nil {
-		request.Logger.Error(err.ToString())
-		return err.Response()
+		return err
 	}
 
+	request.setParamsInterface(params)
+
+	return nil
+}
+
+func (e *BasicEndpoint[T]) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
+	params := request.GetParamsInterface().(T)
 	response := e.Handler(request, params)
 	return response
 }

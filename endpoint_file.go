@@ -124,6 +124,10 @@ func (e *FsEndpoint) Register(parent EndpointParent) {
 	registerEndpoint(e, parent)
 }
 
+func (e *FsEndpoint) BindParams(*Request) *ParamParsingError {
+	return nil
+}
+
 func (e *FsEndpoint) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
 	filepath := ctx.Param("*")
 	fullFilepath := path.Join(e.Dir, filepath)

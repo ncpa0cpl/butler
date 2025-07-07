@@ -76,22 +76,29 @@ func (e *Endpoint[T, B]) Use(middleware Middleware) {
 	e.middlewares = append(e.middlewares, middleware)
 }
 
-func (e *Endpoint[T, B]) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
+func (e *Endpoint[T, B]) BindParams(request *Request) *ParamParsingError {
 	if e.bindParams == nil {
 		e.bindParams = CreateSearchParamsBinder[T]()
 	}
 
+	params, perr := e.bindParams(request)
+	if perr != nil {
+		return perr
+	}
+
+	request.setParamsInterface(params)
+
+	return nil
+}
+
+func (e *Endpoint[T, B]) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
 	body, err := e.parseBody(ctx)
 	if err != nil {
 		request.Logger.Error(err)
 		return Respond.BadRequest()
 	}
 
-	params, perr := e.bindParams(request)
-	if perr != nil {
-		request.Logger.Error(perr.ToString())
-		return perr.Response()
-	}
+	params := request.GetParamsInterface().(T)
 
 	response := e.Handler(request, params, body)
 	return response

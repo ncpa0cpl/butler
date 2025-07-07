@@ -85,6 +85,16 @@ func (r *Request) EchoContext() echo.Context {
 	return r.ctx
 }
 
+// Returns the object to which the params were bound to by the endpoint handler
+// (for example the instance of the T type from a `BasicEndpoint[T]`)
+func (r *Request) GetParamsInterface() any {
+	return r.Data[ENDPOINT_REQ_PARAMS_KEY]
+}
+
+func (r *Request) setParamsInterface(params any) {
+	r.Data[ENDPOINT_REQ_PARAMS_KEY] = params
+}
+
 func (r *Request) monitorStart(step, name string) {
 	r.monitorRecord.StepStart(step, name)
 }
