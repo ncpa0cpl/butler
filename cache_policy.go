@@ -3,6 +3,7 @@ package butler
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ncpa0cpl/butler/swag"
@@ -59,9 +60,20 @@ type HttpCachePolicy struct {
 	// no-transform indicates that any intermediary (regardless of whether it implements a cache) shouldn't transform
 	// the response contents.
 	NoTransform bool
+	// A slice of header names that influence the response generation. Client will use the specified headers
+	// (along with request method and url path) to create a cache key.
+	//
+	// For example when using the `Accept` header to change the format of the response data from JSON to XML, the
+	// `Accept` header should be listed as one of the Vary entries. This will prevent the client from returning a
+	// cached JSON repsonse when XML is requested via that header.
+	Vary []string
 }
 
-func (policy HttpCachePolicy) ToString() string {
+func (policy HttpCachePolicy) VaryHeader() string {
+	return strings.Join(policy.Vary, ", ")
+}
+
+func (policy HttpCachePolicy) CacheControlHeader() string {
 	value := ""
 	if policy.Private {
 		value = "private"
@@ -121,7 +133,7 @@ func (policy HttpCachePolicy) toSwagOptions() *swag.CacheOptions {
 		ProxyRevalidate:             policy.ProxyRevalidate,
 		MustUnderstand:              policy.MustUnderstand,
 		NoTransform:                 policy.NoTransform,
-		ExampleHeader:               policy.ToString(),
+		ExampleHeader:               policy.CacheControlHeader(),
 	}
 
 	return &opts

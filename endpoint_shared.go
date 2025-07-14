@@ -73,7 +73,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 				length = runtime.Stack(stack, true)
 				stack = stack[:length]
 
-				msg := fmt.Sprintf("[PANIC RECOVERY] %v %s", err, stack[:length])
+				msg := fmt.Sprintf("[PANIC RECOVERY] %v %s", err, stack)
 				request.Logger.Fatal(msg)
 
 				request.saveSessions()
@@ -163,11 +163,14 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 			response.StreamingSettings = streamSettings
 		}
 
-		if response.Status < 300 && request.Method == "GET" {
-			cp := resolveCachePolicy(cachePolicy, response)
-			if cp != nil {
+		cp := resolveCachePolicy(cachePolicy, response)
+		if cp != nil {
+			if cp.Vary != nil && len(cp.Vary) > 0 {
+				response.Headers.Set("Vary", cp.VaryHeader())
+			}
 
-				response.Headers.Set("Cache-Control", cp.ToString())
+			if response.Status < 300 && request.Method == "GET" {
+				response.Headers.Set("Cache-Control", cp.CacheControlHeader())
 
 				if !cp.DisableETagGeneration {
 					request.monitorStart(MonitorStep.EtagHandler, "")
@@ -189,7 +192,6 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 						}
 					}
 				}
-
 			}
 		}
 
