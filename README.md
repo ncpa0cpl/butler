@@ -15,3 +15,4 @@ See [Docs](./docs/README.md)
 - support for proxying responses
 - easy to setup usage and performance monitoring
 - Swagger-like automatic API docs generation 
+- a simple high-level Websocket API
