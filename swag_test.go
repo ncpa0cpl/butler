@@ -73,10 +73,15 @@ func TestSwag(t *testing.T) {
 		},
 	}
 
-	server.Add(authors)
-	server.Add(books)
-	server.Add(restEndp)
-	server.Add(wsEndp)
+	mainGrp := &f.Group{
+		Name: "Grp",
+	}
+
+	mainGrp.Add(authors)
+	mainGrp.Add(books)
+	mainGrp.Add(restEndp)
+	mainGrp.Add(wsEndp)
+	server.Add(mainGrp)
 
 	f.AddApiDocumentationRoute("/api_docs", server)
 

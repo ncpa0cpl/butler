@@ -6,7 +6,6 @@ import (
 	"os"
 	"slices"
 
-	"github.com/gofrs/uuid"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	echo "github.com/labstack/echo/v4"
@@ -172,8 +171,31 @@ func (server *Server) OnRequestLog(handler LogHandler) {
 	server.requestLoggerHandler = handler
 }
 
+func methodToSortPrio(m string) int {
+	if m == "GET" {
+		return 0
+	}
+	if m == "POST" {
+		return 1
+	}
+	if m == "DELETE" {
+		return 2
+	}
+	if m == "PUT" {
+		return 3
+	}
+	if m == "PATCH" {
+		return 4
+	}
+	return -1
+}
+
 func sortEndpoints(a, b swag.EndpointData) int {
 	if (a.IsGroup && b.IsGroup) || (!a.IsGroup && !b.IsGroup) {
+		if a.Method != b.Method {
+			return methodToSortPrio(a.Method) - methodToSortPrio(b.Method)
+		}
+
 		aName := a.Name
 		bName := b.Name
 
@@ -193,15 +215,13 @@ func sortEndpoints(a, b swag.EndpointData) int {
 	return 1
 }
 
-func mapEndpoints(endpoints []EndpointInterface) []swag.EndpointData {
+func mapEndpoints(endpoints []EndpointInterface, level int) []swag.EndpointData {
 	endpData := make([]swag.EndpointData, 0, len(endpoints))
 
 	for _, endpoint := range endpoints {
 		sub := endpoint.GetSubRoutes()
-		uid, _ := uuid.NewV4()
 		_, isWs := endpoint.(*WebSocketEndpoint)
 		d := swag.EndpointData{
-			Uid:             uid.String(),
 			Name:            endpoint.GetName(),
 			Description:     endpoint.GetDescription(),
 			Path:            endpoint.GetPath(),
@@ -213,8 +233,9 @@ func mapEndpoints(endpoints []EndpointInterface) []swag.EndpointData {
 			Encoding:        endpoint.GetDefaultEncoding(),
 			IsWs:            isWs,
 			IsGroup:         len(sub) > 0,
-			Children:        mapEndpoints(sub),
+			Children:        mapEndpoints(sub, level+1),
 		}
+		d.PopulateUid(level)
 		cachePolicy := endpoint.GetDefaultCachePolicy()
 		if cachePolicy != nil {
 			d.CacheOptions = cachePolicy.toSwagOptions()
@@ -228,7 +249,7 @@ func mapEndpoints(endpoints []EndpointInterface) []swag.EndpointData {
 }
 
 func AddApiDocumentationRoute(path string, server *Server, m ...Middleware) error {
-	html, err := swag.CreateApiDocumentation(mapEndpoints(server.endpoints))
+	html, err := swag.CreateApiDocumentation(mapEndpoints(server.endpoints, 1))
 	if err != nil {
 		return err
 	}

@@ -248,11 +248,11 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) {
 		g.Name = getTypeName(t)
 	}
 
-	getEndpoint.Name = "Show"
-	getListEndpoint.Name = "List"
-	postEndpoint.Name = "Create"
-	putEndpoint.Name = "Update"
-	deleteEndpoint.Name = "Delete"
+	getEndpoint.Name = g.Name
+	getListEndpoint.Name = g.Name + " List"
+	postEndpoint.Name = "Create " + g.Name
+	putEndpoint.Name = "Update " + g.Name
+	deleteEndpoint.Name = "Remove " + g.Name
 
 	getEndpoint.Register(g)
 	getListEndpoint.Register(g)

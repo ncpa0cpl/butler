@@ -69,44 +69,57 @@
 {{define "SidebarGroup"}}
   {{ $entry := index . 0  }}
   {{ $level := index . 1  }}
+  {{ $label := $entry.Path }}
+  {{if ne $entry.Name ""}}
+    {{ $label = $entry.Name }}
+  {{end}}
 
   <div class="mb-1">
       {{if eq (len $entry.Children) 0}}
         <button
           is="cst-groupbtn"
           data-endpid="{{$entry.Uid}}"
+          data-label="API: {{$entry.Method}} {{$label}}"
+          aria-label="{{$entry.Method}} {{$label}}"
           class="sidebarbtn flex items-center w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-300"
           style="padding-left: {{add (multiply $level 16) 16}}px"
+          snode
+          data-name="{{$entry.Name}}"
+          data-path="{{$entry.Path}}"
+          data-method="{{$entry.Method}}"
         >
           {{template "MethodBadge" $entry.Method}}
           <span class="truncate">
-            {{if ne $entry.Name ""}}
-              {{$entry.Name}}
-            {{else}}
-              {{$entry.Path}}
-            {{end}}
+            {{$label}}
           </span>
         </button>
       {{else if $entry.IsGroup}}
-        <button
-          is="cst-collapsiblebtn"
-          data-id="{{$entry.Uid}}"
-          class="flex items-center w-full text-left px-4 py-2 text-sm font-medium cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200"
-          style="padding-left: {{add (multiply $level 16) 16}}px"
+        <div
+            snode
+            data-name="{{$entry.Name}}"
+            data-path="{{$entry.Path}}"
+            data-method="{{$entry.Method}}"
         >
-          {{template "chevron"}}
-          <span class="truncate mt-1">
-            {{if ne $entry.Name ""}}
-              {{$entry.Name}}
-            {{else}}
-              {{$entry.Path}}
+            <button
+                is="cst-collapsiblebtn"
+                data-id="{{$entry.Uid}}"
+                class="flex items-center w-full text-left px-4 py-2 text-sm font-medium cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200"
+                style="padding-left: {{add (multiply $level 16) 16}}px"
+            >
+            {{template "chevron"}}
+            <span class="truncate mt-1">
+                {{if ne $entry.Name ""}}
+                {{$entry.Name}}
+                {{else}}
+                {{$entry.Path}}
+                {{end}}
+            </span>
+            </button>
+            <div data-id="{{$entry.Uid}}" class="collapsible-content hidden">
+            {{range $entry.Children}}
+                {{template "SidebarGroup" (tuple . (add $level 1))}}
             {{end}}
-          </span>
-        </button>
-        <div data-id="{{$entry.Uid}}" class="collapsible-content hidden">
-          {{range $entry.Children}}
-              {{template "SidebarGroup" (tuple . (add $level 1))}}
-          {{end}}
+            </div>
         </div>
       {{end}}
   </div>
@@ -144,7 +157,7 @@
   {{ $entry := index . 0  }}
   {{ $index := index . 1  }}
 
-  <div data-endpid="{{$entry.Uid}}" class="endp-details{{if ne $index 0}} hidden{{end}} flex-1 overflow-y-auto p-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-track]:bg-neutral-700 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-500">
+  <div data-endpid="{{$entry.Uid}}" class="endp-details hidden flex-1 overflow-y-auto p-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-track]:bg-neutral-700 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-500">
     <div class="space-y-6">
       <div>
         <div class="flex items-center gap-3 mb-2">
@@ -179,7 +192,7 @@
               <thead class="[&_tr]:border-b">
               </thead>
               <tbody class="[&_tr:last-child]:border-0">
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium">
                     <div class="flex flex-row">
                       <span>Response Skipping</span>
@@ -188,7 +201,7 @@
                   </td>
                   <td class="p-4 align-middle">{{template "BoolIndicator" (not $entry.CacheOptions.DisableAutoResponseSkipping)}}</td>
                 </tr>
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium">
                     <div class="flex flex-row">
                       <span>ETag Generation</span>
@@ -197,55 +210,55 @@
                   </td>
                   <td class="p-4 align-middle">{{template "BoolIndicator" (not $entry.CacheOptions.DisableETagGeneration)}}</td>
                 </tr>
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium"><span>Public</span></td>
                   <td class="p-4 align-middle">{{template "BoolIndicator" (not $entry.CacheOptions.Private)}}</td>
                 </tr>
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium"><span>Private</span></td>
                   <td class="p-4 align-middle">{{template "BoolIndicator" $entry.CacheOptions.Private}}</td>
                 </tr>
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium"><span>No Store</span></td>
                   <td class="p-4 align-middle">{{template "BoolIndicator" $entry.CacheOptions.NoStore}}</td>
                 </tr>
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium"><span>No Cache</span></td>
                   <td class="p-4 align-middle">{{template "BoolIndicator" $entry.CacheOptions.NoCache}}</td>
                 </tr>
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium"><span>Must Revalidate</span></td>
                   <td class="p-4 align-middle">{{template "BoolIndicator" $entry.CacheOptions.MustRevalidate}}</td>
                 </tr>
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium"><span>Proxy Revalidate</span></td>
                   <td class="p-4 align-middle">{{template "BoolIndicator" $entry.CacheOptions.ProxyRevalidate}}</td>
                 </tr>
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium"><span>Must Understand</span></td>
                   <td class="p-4 align-middle">{{template "BoolIndicator" $entry.CacheOptions.MustUnderstand}}</td>
                 </tr>
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium"><span>No Transform</span></td>
                   <td class="p-4 align-middle">{{template "BoolIndicator" $entry.CacheOptions.NoTransform}}</td>
                 </tr>
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium"><span>Immutable</span></td>
                   <td class="p-4 align-middle">{{template "BoolIndicator" $entry.CacheOptions.Immutable}}</td>
                 </tr>
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium"><span>Max Age</span></td>
                   <td class="p-4 align-middle">{{$entry.CacheOptions.MaxAge}} seconds</td>
                 </tr>
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium"><span>Stale Max Age</span></td>
                   <td class="p-4 align-middle">{{$entry.CacheOptions.SMaxAge}} seconds</td>
                 </tr>
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium"><span>Stale While Revalidate</span></td>
                   <td class="p-4 align-middle">{{$entry.CacheOptions.StaleWhileRevalidate}} seconds</td>
                 </tr>
-                <tr class="border-b transition-colors border-gray-600">
+                <tr class="border-b transition-colors border-gray-600 hover:bg-lime-50 dark:hover:bg-teal-950">
                   <td class="p-4 align-middle font-medium"><span>Stale If Error</span></td>
                   <td class="p-4 align-middle">{{$entry.CacheOptions.StaleIfError}} seconds</td>
                 </tr>
@@ -392,6 +405,7 @@
         <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
         <style>
             .sidebarbtn { display: grid; grid-template-columns: 5em auto; }
+            .hidden {display: none;}
         </style>
     </head>
     <body>
@@ -401,9 +415,14 @@
               <div class="p-4 border-b border-gray-200 dark:border-slate-700">
                 <h1 class="text-xl font-bold text-gray-800 dark:text-white">API Documentation</h1>
               </div>
-              {{range .Endpoints}}
-                {{template "SidebarGroup" (tuple . 0)}}
-              {{end}}
+              <div class="px-4 pb-4">
+                  <input placeholder="Search..." is="search-bar" searchid="searchable" class="p-2 w-full border rounded-md bg-gray-300 dark:bg-slate-600 ring-gray-500 border-gray-500 dark:ring-slate-400 dark:border-slate-400 focus:ring-blue-400 focus:border-blue-400 dark:focus:ring-blue-700 dark:focus:border-blue-700 dark:text-white focus:outline-none" />
+              </div>
+              <div id="searchable">
+                {{range .Endpoints}}
+                    {{template "SidebarGroup" (tuple . 0)}}
+                {{end}}
+              </div>
             </div>
 
             {{range $idx, $item := (flatten .Endpoints)}}
