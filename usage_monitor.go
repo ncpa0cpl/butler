@@ -125,6 +125,7 @@ type mstep struct {
 	EtagHandler   string
 	Encoding      string
 	Custom        string
+	BindinParams  string
 }
 
 var MonitorStep = mstep{
@@ -134,5 +135,6 @@ var MonitorStep = mstep{
 	Handler:       "handler",
 	EtagHandler:   "internal:etag",
 	Encoding:      "internal:encoding",
+	BindinParams:  "internal:bind_params",
 	Custom:        "custom",
 }

@@ -51,12 +51,6 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 		request := NewRequest(ctx, monitor, parent)
 		defer request.completeMonitor()
 
-		perr := e.BindParams(request)
-		if perr != nil {
-			request.Logger.Error(perr.ToString())
-			return perr.Response().send(request)
-		}
-
 		defer func() {
 			if r := recover(); r != nil {
 				if r == http.ErrAbortHandler {
@@ -98,6 +92,14 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 			request.monitorEnd(MonitorStep.Auth, "")
 		}
+
+		request.monitorStart(MonitorStep.BindinParams, "")
+		perr := e.BindParams(request)
+		if perr != nil {
+			request.Logger.Error(perr.ToString())
+			return perr.Response().send(request)
+		}
+		request.monitorEnd(MonitorStep.BindinParams, "")
 
 		var response *Response
 		for _, md := range reqMiddlewares {
