@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 )
 
 // CORSConfig defines the config for CORS middleware.
@@ -181,7 +181,7 @@ func CORSWithConfig(config CORSConfig) echo.MiddlewareFunc {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}

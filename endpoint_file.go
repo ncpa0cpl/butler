@@ -7,7 +7,7 @@ import (
 	"path"
 	"strings"
 
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 )
 
 type FsEndpoint struct {
@@ -128,7 +128,7 @@ func (e *FsEndpoint) BindParams(*Request) *ParamParsingError {
 	return nil
 }
 
-func (e *FsEndpoint) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
+func (e *FsEndpoint) ExecuteHandler(ctx *echo.Context, request *Request) (retVal *Response) {
 	filepath := ctx.Param("*")
 	fullFilepath := path.Join(e.Dir, filepath)
 

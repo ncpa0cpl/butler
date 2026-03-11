@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 )
 
 var upgrader = websocket.Upgrader{}
@@ -83,7 +83,7 @@ func (e *WebSocketEndpoint) BindParams(*Request) *ParamParsingError {
 	return nil
 }
 
-func (e *WebSocketEndpoint) ExecuteHandler(ctx echo.Context, request *Request) error {
+func (e *WebSocketEndpoint) ExecuteHandler(ctx *echo.Context, request *Request) error {
 	ws, err := upgrader.Upgrade(ctx.Response(), ctx.Request(), nil)
 	if err != nil {
 		return err
@@ -130,7 +130,7 @@ func (e *WebSocketEndpoint) Register(parent EndpointParent) {
 		authHandlers = append(authHandlers, endpAuth)
 	}
 
-	handler := func(ctx echo.Context) error {
+	handler := func(ctx *echo.Context) (resultErr error) {
 		request := NewRequest(ctx, monitor, parent)
 
 		defer func() {
@@ -151,12 +151,7 @@ func (e *WebSocketEndpoint) Register(parent EndpointParent) {
 
 				msg := fmt.Sprintf("[PANIC RECOVERY] %v %s", err, stack[:length])
 				request.Logger.Fatal(msg)
-
-				if err != nil {
-					ctx.Error(err)
-				} else {
-					ctx.NoContent(500)
-				}
+				resultErr = ctx.NoContent(500)
 			}
 		}()
 

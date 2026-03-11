@@ -640,8 +640,8 @@ func TestPanicRecovery(t *testing.T) {
 
 	_, resp := request("GET", "http://localhost:8080/api/pnic", nil)
 	assert.Equal(500, resp.StatusCode)
-	assert.Equal(3, len(output.logs))
-	assert.Contains(output.logs[2], "FATAL: GET /api/pnic - [PANIC RECOVERY] handler encountered unrecoverable error")
+	assert.Equal(1, len(output.logs))
+	assert.Contains(output.logs[0], "FATAL: GET /api/pnic - [PANIC RECOVERY] handler encountered unrecoverable error")
 }
 
 func TestSessions(t *testing.T) {
@@ -818,7 +818,7 @@ func TestProxyResponse(t *testing.T) {
 	// check if the butler server defined headers are present
 	assert.Equal("butler", resp.Header.Get("X-Custom-Header"))
 	// check if the swapi server defined headers are present
-	assert.Equal("/api/films/all.json", resp.Header.Get("x-matched-path"))
+	assert.Equal("h3=\":443\"; ma=86400", resp.Header.Get("alt-svc"))
 	// headers defined by the butler server should overwrite the swapi headers
 	assert.Equal("butler", resp.Header.Get("server"))
 	expectedResponse := []Film{

@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type responseLog struct {
@@ -27,7 +27,7 @@ type Response struct {
 	CachePolicy       *HttpCachePolicy
 	AllowStreaming    bool
 	StreamingSettings *StreamingSettings
-	customHandler     func(ctx echo.Context) error
+	customHandler     func(ctx *echo.Context) error
 	cookies           []http.Cookie
 	etag              string
 	logs              []responseLog
@@ -407,9 +407,9 @@ type resp struct{}
 var Respond resp
 
 // Creates a Response with a custom handler, when a custom handler is used the Response body, status, headers, cookies
-// etc. that are set in the butler.Response will not be added to the echo.Context. You have to add those directly to the
-// echo.Context yourself.
-func (resp) Handler(customHandler func(ctx echo.Context) error) *Response {
+// etc. that are set in the butler.Response will not be added to the *echo.Context. You have to add those directly to the
+// *echo.Context yourself.
+func (resp) Handler(customHandler func(ctx *echo.Context) error) *Response {
 	return &Response{
 		customHandler: customHandler,
 	}

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"runtime"
 
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 )
 
 const ENDPOINT_REQ_PARAMS_KEY = "__endpoint_req_params_interface"
@@ -15,7 +15,7 @@ type AnyEndpoint interface {
 	GetMethod() string
 	GetAuth() AuthHandler
 	GetEncoding() string
-	ExecuteHandler(ctx echo.Context, request *Request) *Response
+	ExecuteHandler(ctx *echo.Context, request *Request) *Response
 	GetCachePolicy() *HttpCachePolicy
 	GetStreamingSettings() *StreamingSettings
 	GetMiddlewares() []Middleware
@@ -47,7 +47,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 		defaultEncoding = "auto"
 	}
 
-	handler := func(ctx echo.Context) error {
+	handler := func(ctx *echo.Context) (resultErr error) {
 		request := NewRequest(ctx, monitor, parent)
 		defer request.completeMonitor()
 
@@ -72,11 +72,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 				request.saveSessions()
 
-				if err != nil {
-					ctx.Error(err)
-				} else {
-					ctx.NoContent(500)
-				}
+				resultErr = ctx.NoContent(500)
 			}
 		}()
 

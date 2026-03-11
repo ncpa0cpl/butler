@@ -6,8 +6,8 @@ import (
 	"net/url"
 
 	"github.com/gorilla/sessions"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
 )
 
 type Request struct {
@@ -19,13 +19,13 @@ type Request struct {
 
 	monitor          monitorRecorder
 	monitorRecord    RecordBuilder
-	ctx              echo.Context
+	ctx              *echo.Context
 	accessedSessions []*sessions.Session
 	parent           EndpointParent
 }
 
 func NewRequest(
-	ctx echo.Context,
+	ctx *echo.Context,
 	monitor monitorRecorder,
 	parent EndpointParent,
 ) *Request {
@@ -43,7 +43,7 @@ func NewRequest(
 		parent:        parent,
 	}
 
-	req.Logger = newRequestLogger(req, ctx.Logger())
+	req.Logger = newRequestLogger(req, parent.GetServer().Logger())
 
 	return req
 }
@@ -77,7 +77,7 @@ func (r *Request) FormValue(name string) string {
 }
 
 func (r *Request) FormParams() (url.Values, error) {
-	return r.ctx.FormParams()
+	return r.ctx.FormValues()
 }
 
 func (r *Request) FormFile(name string) (*multipart.FileHeader, error) {
@@ -88,7 +88,7 @@ func (r *Request) MultipartForm() (*multipart.Form, error) {
 	return r.ctx.MultipartForm()
 }
 
-func (r *Request) EchoContext() echo.Context {
+func (r *Request) EchoContext() *echo.Context {
 	return r.ctx
 }
 

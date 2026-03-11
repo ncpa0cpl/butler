@@ -1,7 +1,7 @@
 package butler
 
 import (
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 )
 
 type BasicEndpoint[T any] struct {
@@ -89,7 +89,7 @@ func (e *BasicEndpoint[T]) BindParams(request *Request) *ParamParsingError {
 	return nil
 }
 
-func (e *BasicEndpoint[T]) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
+func (e *BasicEndpoint[T]) ExecuteHandler(ctx *echo.Context, request *Request) (retVal *Response) {
 	params := request.GetParamsInterface().(T)
 	response := e.Handler(request, params)
 	return response

@@ -2,18 +2,25 @@ package butler
 
 import (
 	"cmp"
+	"context"
+	"crypto/tls"
 	"fmt"
+	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
 	"slices"
+	"syscall"
 
 	"github.com/gorilla/sessions"
-	"github.com/labstack/echo-contrib/session"
-	echo "github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo-contrib/v5/session"
+	echo "github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/ncpa0cpl/butler/echo_middleware/cors"
 	"github.com/ncpa0cpl/butler/swag"
-	"golang.org/x/crypto/acme/autocert"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 )
 
 type LogHandler interface {
@@ -49,23 +56,31 @@ type EndpointInterface interface {
 type Server struct {
 	Cors                 *CorsSettings
 	Port                 int
+	log                  ILogger
 	echo                 *echo.Echo
 	endpoints            []EndpointInterface
 	middlewares          []Middleware
 	usageMonitor         UsageMonitor
 	requestLoggerHandler LogHandler
+	httpVersion          string
+	http2Options         *http2.Server
+	cancelFn             context.CancelFunc
 }
 
 func CreateServer() *Server {
 	e := echo.New()
 
-	e.Logger = NewButlerLogger("", os.Stdout)
+	log := NewButlerLogger("", os.Stdout)
+
+	e.Logger = slog.New(log.SlogHandler())
 
 	return &Server{
-		Port:      80,
-		Cors:      &CorsSettings{},
-		echo:      e,
-		endpoints: []EndpointInterface{},
+		Port:        80,
+		Cors:        &CorsSettings{},
+		log:         log,
+		echo:        e,
+		endpoints:   []EndpointInterface{},
+		httpVersion: "1",
 	}
 }
 
@@ -73,12 +88,12 @@ func (server *Server) GetEcho() *echo.Echo {
 	return server.echo
 }
 
-func (server *Server) SetLogger(logger echo.Logger) {
-	server.echo.Logger = logger
+func (server *Server) SetLogger(logger ILogger) {
+	server.log = logger
 }
 
-func (server *Server) Logger() echo.Logger {
-	return server.echo.Logger
+func (server *Server) Logger() ILogger {
+	return server.log
 }
 
 func (server *Server) SetSessionStore(store sessions.Store) {
@@ -115,6 +130,15 @@ func (server *Server) Use(middleware Middleware) {
 	server.middlewares = append(server.middlewares, middleware)
 }
 
+func (server *Server) UseHttp1() {
+	server.httpVersion = "1"
+}
+
+func (server *Server) UseHttp2(options *http2.Server) {
+	server.httpVersion = "2"
+	server.http2Options = options
+}
+
 // Automatically redirect all HTTP requests to a HTTPS equivalent
 func (server *Server) ForceHTTPS() {
 	server.echo.Pre(middleware.HTTPSRedirect())
@@ -128,40 +152,71 @@ func (server *Server) Monitor(usageMonitor UsageMonitor) {
 }
 
 func (server *Server) Listen() error {
+	var err error
 	server.echo.Use(cors.CORSWithConfig(server.Cors.config))
 
-	err := server.echo.Start(fmt.Sprintf(":%v", server.Port))
-	if err != nil {
-		server.echo.Logger.Error(err)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill, syscall.SIGTERM)
+	server.cancelFn = cancel
+	sc := echo.StartConfig{
+		Address: fmt.Sprintf(":%v", server.Port),
 	}
+
+	if server.httpVersion == "2" {
+		h2Handler := h2c.NewHandler(server.echo, server.http2Options)
+		if err := sc.Start(ctx, h2Handler); err != nil {
+			server.log.Error(err)
+		}
+		return err
+	}
+
+	if err := sc.Start(ctx, server.echo); err != nil {
+		server.log.Error(err)
+	}
+
 	return err
 }
 
-func (server *Server) ListenTLS(certFile any, keyFile any) error {
+func (server *Server) ListenTLS(certFile, keyFile any) error {
+	var err error
+
 	server.echo.Use(cors.CORSWithConfig(server.Cors.config))
 
-	err := server.echo.StartTLS(fmt.Sprintf(":%v", server.Port), certFile, keyFile)
+	tlsConf, err := newTlsConfig(certFile, keyFile)
 	if err != nil {
-		server.echo.Logger.Error(err)
+		return err
 	}
-	return err
-}
 
-func (server *Server) ListenAutoTLS(dirCache string, allowedHosts ...string) error {
-	server.echo.Use(cors.CORSWithConfig(server.Cors.config))
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill, syscall.SIGTERM)
+	server.cancelFn = cancel
 
-	server.echo.AutoTLSManager.Cache = autocert.DirCache(dirCache)
-	server.echo.AutoTLSManager.HostPolicy = autocert.HostWhitelist(allowedHosts...)
-
-	err := server.echo.StartAutoTLS(fmt.Sprintf(":%v", server.Port))
-	if err != nil {
-		server.echo.Logger.Error(err)
+	sc := echo.StartConfig{
+		Address:   fmt.Sprintf(":%v", server.Port),
+		TLSConfig: tlsConf,
 	}
+
+	if server.httpVersion == "2" {
+		sc.TLSConfig.MinVersion = tls.VersionTLS12
+		sc.TLSConfig.NextProtos = []string{"h2", "http/1.1"}
+		sc.BeforeServeFunc = func(s *http.Server) error {
+			return http2.ConfigureServer(s, server.http2Options)
+		}
+
+		if err := sc.Start(ctx, server.echo); err != nil {
+			server.log.Error(err)
+		}
+
+		return err
+	}
+
+	if err := sc.Start(ctx, server.echo); err != nil {
+		server.log.Error(err)
+	}
+
 	return err
 }
 
 func (server *Server) Close() {
-	server.echo.Close()
+	server.cancelFn()
 }
 
 // add a handler function that can intercept logs made within request handlers, modify them or act on them
@@ -269,4 +324,37 @@ func AddApiDocumentationRoute(path string, server *Server, m ...Middleware) erro
 	server.Add(&endp)
 
 	return nil
+}
+
+func filepathOrContent(fileOrContent interface{}) (content []byte, err error) {
+	switch v := fileOrContent.(type) {
+	case string:
+		return os.ReadFile(v)
+	case []byte:
+		return v, nil
+	default:
+		return nil, echo.ErrInvalidCertOrKeyType
+	}
+}
+
+func newTlsConfig(certFile, keyFile any) (*tls.Config, error) {
+	var err error
+
+	var cert []byte
+	if cert, err = filepathOrContent(certFile); err != nil {
+		return nil, err
+	}
+
+	var key []byte
+	if key, err = filepathOrContent(keyFile); err != nil {
+		return nil, err
+	}
+
+	tlsConf := &tls.Config{}
+	tlsConf.Certificates = make([]tls.Certificate, 1)
+	if tlsConf.Certificates[0], err = tls.X509KeyPair(cert, key); err != nil {
+		return nil, err
+	}
+
+	return tlsConf, nil
 }

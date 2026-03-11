@@ -3,7 +3,7 @@ package butler
 import (
 	"reflect"
 
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 )
 
 type RestResource[Q any, B any] interface {

@@ -1,7 +1,7 @@
 package butler
 
 import (
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 )
 
 type Endpoint[T any, B any] struct {
@@ -91,7 +91,7 @@ func (e *Endpoint[T, B]) BindParams(request *Request) *ParamParsingError {
 	return nil
 }
 
-func (e *Endpoint[T, B]) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
+func (e *Endpoint[T, B]) ExecuteHandler(ctx *echo.Context, request *Request) (retVal *Response) {
 	body, err := e.parseBody(ctx)
 	if err != nil {
 		request.Logger.Error(err)
@@ -116,7 +116,7 @@ func (e *Endpoint[T, B]) Register(parent EndpointParent) {
 	registerEndpoint(e, parent)
 }
 
-func (e *Endpoint[T, B]) parseBody(ctx echo.Context) (*B, error) {
+func (e *Endpoint[T, B]) parseBody(ctx *echo.Context) (*B, error) {
 	var body B
 	err := ctx.Bind(&body)
 	return &body, err

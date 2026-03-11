@@ -105,19 +105,25 @@ func TestUsageMonitor(t *testing.T) {
 	assert.Equal("/api/books", record1.UrlPath)
 	assert.NotNil(record1.Start)
 	assert.NotNil(record1.End)
-	assert.Equal(6, len(record1.Steps))
+	assert.Equal(7, len(record1.Steps))
 
 	authStep := record1.Steps[0]
-	reqMdStep := record1.Steps[1]
-	handlerStem := record1.Steps[2]
-	resMdStep := record1.Steps[3]
-	etagStep := record1.Steps[4]
-	encodeStep := record1.Steps[5]
+	paramBinStep := record1.Steps[1]
+	reqMdStep := record1.Steps[2]
+	handlerStem := record1.Steps[3]
+	resMdStep := record1.Steps[4]
+	etagStep := record1.Steps[5]
+	encodeStep := record1.Steps[6]
 
 	assert.Equal("auth", authStep.Step)
 	assert.Equal("", authStep.Name)
 	assert.NotNil(authStep.Start)
 	assert.NotNil(authStep.End)
+
+	assert.Equal("internal:bind_params", paramBinStep.Step)
+	assert.Equal("", paramBinStep.Name)
+	assert.NotNil(paramBinStep.Start)
+	assert.NotNil(paramBinStep.End)
 
 	assert.Equal("middleware:request", reqMdStep.Step)
 	assert.Equal("MdFoo", reqMdStep.Name)
