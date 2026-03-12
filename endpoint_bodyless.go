@@ -15,6 +15,16 @@ type BasicEndpoint[T any] struct {
 	CachePolicy       *HttpCachePolicy
 	StreamingSettings *StreamingSettings
 	Handler           func(request *Request, params T) *Response
+	// Optional function for generating an ETag
+	//
+	// Value returned by this function will be set in the response Etag header.
+	//
+	// If the returned ETag matches the requests `If-None-Match` header
+	// the handler call will be skipped and a 304 response will be sent
+	//
+	// If this function is nil, Butler will instead read the response body and
+	// generate a hash to be used as an ETag
+	GetEtag func(request *Request) string
 
 	Description string
 	Name        string
@@ -72,6 +82,10 @@ func (e *BasicEndpoint[T]) GetMiddlewares() []Middleware {
 
 func (e *BasicEndpoint[T]) Use(middleware Middleware) {
 	e.middlewares = append(e.middlewares, middleware)
+}
+
+func (e *BasicEndpoint[T]) EtagGenerator() func(request *Request) string {
+	return e.GetEtag
 }
 
 func (e *BasicEndpoint[T]) BindParams(request *Request) *ParamParsingError {

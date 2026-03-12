@@ -160,7 +160,7 @@ func EncodeRequestBrotli(request *Request, resp *Response) error {
 	return nil
 }
 
-func AddEtag(response *Response) {
+func GenerateAndAddETag(response *Response) {
 	if len(response.Body) == 0 {
 		return
 	}

@@ -111,8 +111,8 @@ func TestUsageMonitor(t *testing.T) {
 	paramBinStep := record1.Steps[1]
 	reqMdStep := record1.Steps[2]
 	handlerStem := record1.Steps[3]
-	resMdStep := record1.Steps[4]
-	etagStep := record1.Steps[5]
+	etagStep := record1.Steps[4]
+	resMdStep := record1.Steps[5]
 	encodeStep := record1.Steps[6]
 
 	assert.Equal("auth", authStep.Step)
@@ -135,15 +135,15 @@ func TestUsageMonitor(t *testing.T) {
 	assert.NotNil(handlerStem.Start)
 	assert.NotNil(handlerStem.End)
 
-	assert.Equal("middleware:response", resMdStep.Step)
-	assert.Equal("MdFoo", resMdStep.Name)
-	assert.NotNil(resMdStep.Start)
-	assert.NotNil(resMdStep.End)
-
 	assert.Equal("internal:etag", etagStep.Step)
 	assert.Equal("", etagStep.Name)
 	assert.NotNil(etagStep.Start)
 	assert.NotNil(etagStep.End)
+
+	assert.Equal("middleware:response", resMdStep.Step)
+	assert.Equal("MdFoo", resMdStep.Name)
+	assert.NotNil(resMdStep.Start)
+	assert.NotNil(resMdStep.End)
 
 	assert.Equal("internal:encoding", encodeStep.Step)
 	assert.Equal("", encodeStep.Name)

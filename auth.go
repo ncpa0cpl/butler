@@ -44,6 +44,6 @@ func (a *Ath) IsSuccessful() bool {
 	return a.success
 }
 
-func (a *Ath) SendResponse(ctx *Request) error {
-	return a.response.send(ctx)
+func (a *Ath) GetResponse() *Response {
+	return a.response
 }

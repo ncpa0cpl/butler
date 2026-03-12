@@ -28,6 +28,16 @@ type FsEndpoint struct {
 		file *os.File,
 		fstat os.FileInfo,
 	) *Response
+	// Optional function for generating an ETag
+	//
+	// Value returned by this function will be set in the response Etag header.
+	//
+	// If the returned ETag matches the requests `If-None-Match` header
+	// the handler call will be skipped and a 304 response will be sent
+	//
+	// If this function is nil, Butler will instead read the response body and
+	// generate a hash to be used as an ETag
+	GetEtag func(request *Request, fullFilepath string) string
 
 	Description string
 	Name        string
@@ -79,6 +89,19 @@ func (e *FsEndpoint) GetMiddlewares() []Middleware {
 
 func (e *FsEndpoint) Use(middleware Middleware) {
 	e.middlewares = append(e.middlewares, middleware)
+}
+
+func (e *FsEndpoint) EtagGenerator() func(request *Request) string {
+	getEtag := e.GetEtag
+	if getEtag == nil {
+		return nil
+	}
+
+	return func(request *Request) string {
+		filepath := request.EchoContext().Param("*")
+		fullFilepath := path.Join(e.Dir, filepath)
+		return getEtag(request, fullFilepath)
+	}
 }
 
 func (e *FsEndpoint) Register(parent EndpointParent) {

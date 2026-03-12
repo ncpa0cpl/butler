@@ -12,8 +12,16 @@ type MiddlewareResponseHandler func(
 ) error
 
 type Middleware struct {
-	Name       string
-	OnRequest  MiddlewareRequestHandler
+	Name string
+	// a handler that will be called on every server request,
+	// it is given a Request pointer and a respond() function
+	//
+	// respond() can override the server response and skip remaining middleware
+	OnRequest MiddlewareRequestHandler
+	// a handler that will be called on every server request,
+	// it is given a Request pointer, a Response pointer and a respond() function
+	//
+	// respond() can override the server response
 	OnResponse MiddlewareResponseHandler
 }
 

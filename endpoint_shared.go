@@ -20,6 +20,7 @@ type AnyEndpoint interface {
 	GetStreamingSettings() *StreamingSettings
 	GetMiddlewares() []Middleware
 	BindParams(request *Request) *ParamParsingError
+	EtagGenerator() func(request *Request) string
 }
 
 func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
@@ -34,6 +35,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 	streamSettings := e.GetStreamingSettings()
 	fullpath := e.GetPath()
 	method := e.GetMethod()
+	getEtag := e.EtagGenerator()
 
 	reqMiddlewares := getReqMiddlewares(middlewares)
 	respMiddlewares := getRespMiddlewares(middlewares)
@@ -47,7 +49,159 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 		defaultEncoding = "auto"
 	}
 
-	handler := func(ctx *echo.Context) (resultErr error) {
+	requestMiddlewares := func(request *Request, response *Response) (*Response, bool) {
+		respond := func(sendInstead *Response) {
+			response = sendInstead
+		}
+
+		for _, md := range reqMiddlewares {
+			request.monitorStart(MonitorStep.ReqMiddleware, md.Name)
+			err := md.OnRequest(request, respond)
+			request.monitorEnd(MonitorStep.ReqMiddleware, md.Name)
+
+			if err != nil {
+				request.Logger.Errorf("middleware %s request handler returned an error", md.Name)
+				return Respond.InternalError(), true
+			}
+
+			if response != nil {
+				break
+			}
+		}
+		return response, false
+	}
+
+	responseMiddlewares := func(request *Request, response *Response) *Response {
+		respond := func(sendInstead *Response) {
+			response = sendInstead
+		}
+
+		for _, md := range respMiddlewares {
+			request.monitorStart(MonitorStep.ResMiddleware, md.Name)
+			err := md.OnResponse(request, response, respond)
+			request.monitorEnd(MonitorStep.ResMiddleware, md.Name)
+
+			if err != nil {
+				request.Logger.Errorf("middleware %s response handler returned an error", md.Name)
+				return Respond.InternalError()
+			}
+		}
+
+		return response
+	}
+
+	createResponse := func(ctx *echo.Context, request *Request) (result *Response) {
+		var response *Response
+		var etag string
+
+		if len(authHandlers) > 0 {
+			request.monitorStart(MonitorStep.Auth, "")
+
+			for _, authHandler := range authHandlers {
+				auth := authHandler(request)
+				if !auth.IsSuccessful() {
+					return auth.GetResponse()
+				}
+			}
+
+			request.monitorEnd(MonitorStep.Auth, "")
+		}
+
+		request.monitorStart(MonitorStep.BindinParams, "")
+		perr := e.BindParams(request)
+		if perr != nil {
+			request.Logger.Error(perr.ToString())
+			return perr.Response()
+		}
+		request.monitorEnd(MonitorStep.BindinParams, "")
+
+		response, failed := requestMiddlewares(request, response)
+		if failed {
+			return response
+		}
+
+		if response == nil {
+			if getEtag != nil {
+				etag = getEtag(request)
+			}
+			if request.Method == "GET" && etag != "" && !cachePolicy.DisableAutoResponseSkipping {
+				ifNoneMatch := request.Headers.Get("If-None-Match")
+
+				if etag == ifNoneMatch {
+					response = Respond.NotModified()
+
+					if cachePolicy.Vary != nil && len(cachePolicy.Vary) > 0 {
+						response.Headers.Set("Vary", cachePolicy.VaryHeader())
+					}
+
+					response.Headers.Set("Cache-Control", cachePolicy.CacheControlHeader())
+					response.Headers.Set("ETag", etag)
+
+					return response
+				}
+			}
+
+			request.monitorStart(MonitorStep.Handler, "")
+			response = e.ExecuteHandler(ctx, request)
+			request.monitorEnd(MonitorStep.Handler, "")
+		}
+
+		if response == nil {
+			request.Logger.Errorf("endpoint handler did not return a response [path=%s]", fullpath)
+			response = Respond.InternalError()
+			return response
+		}
+
+		if response.customHandler != nil {
+			return response
+		}
+
+		if response.StreamingSettings == nil {
+			response.StreamingSettings = streamSettings
+		}
+
+		cp := resolveCachePolicy(cachePolicy, response)
+		if cp != nil {
+			if cp.Vary != nil && len(cp.Vary) > 0 {
+				response.Headers.Set("Vary", cp.VaryHeader())
+			}
+
+			if response.Status >= 200 && response.Status < 300 && request.Method == "GET" {
+				response.Headers.Set("Cache-Control", cp.CacheControlHeader())
+
+				if etag != "" {
+					response.Headers.Set("ETag", etag)
+				} else if !cp.DisableETagGeneration {
+					request.monitorStart(MonitorStep.EtagHandler, "")
+					GenerateAndAddETag(response)
+					request.monitorEnd(MonitorStep.EtagHandler, "")
+				}
+
+				if !cp.DisableAutoResponseSkipping {
+					etag := response.Headers.Get("ETag")
+					if etag != "" {
+						ifNoneMatch := request.Headers.Get("If-None-Match")
+						if etag == ifNoneMatch {
+							response.Status = 304
+							response.Body = nil
+							response.streamReader = nil
+							response.streamWriter = nil
+							response.customHandler = nil
+							return response
+						}
+					}
+				}
+			}
+		}
+
+		if response.Encoding == "" {
+			response.Encoding = defaultEncoding
+		}
+
+		return response
+	}
+
+	handler := func(ctx *echo.Context) (result error) {
 		request := NewRequest(ctx, monitor, parent)
 		defer request.completeMonitor()
 
@@ -72,132 +226,13 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 				request.saveSessions()
 
-				resultErr = ctx.NoContent(500)
+				result = ctx.NoContent(500)
 			}
 		}()
 
-		if len(authHandlers) > 0 {
-			request.monitorStart(MonitorStep.Auth, "")
-
-			for _, authHandler := range authHandlers {
-				auth := authHandler(request)
-				if !auth.IsSuccessful() {
-					return auth.SendResponse(request)
-				}
-			}
-
-			request.monitorEnd(MonitorStep.Auth, "")
-		}
-
-		request.monitorStart(MonitorStep.BindinParams, "")
-		perr := e.BindParams(request)
-		if perr != nil {
-			request.Logger.Error(perr.ToString())
-			return perr.Response().send(request)
-		}
-		request.monitorEnd(MonitorStep.BindinParams, "")
-
-		var response *Response
-		for _, md := range reqMiddlewares {
-			request.monitorStart(MonitorStep.ReqMiddleware, md.Name)
-
-			err := md.OnRequest(
-				request,
-				func(sendInstead *Response) {
-					response = sendInstead
-				},
-			)
-
-			request.monitorEnd(MonitorStep.ReqMiddleware, md.Name)
-
-			if err != nil {
-				request.Logger.Errorf("middleware %s request handler returned an error", md.Name)
-				response = Respond.InternalError()
-				return response.send(request)
-			}
-
-			if response != nil {
-				break
-			}
-		}
-
-		if response == nil {
-			request.monitorStart(MonitorStep.Handler, "")
-			response = e.ExecuteHandler(ctx, request)
-			request.monitorEnd(MonitorStep.Handler, "")
-		}
-
-		for _, md := range respMiddlewares {
-			request.monitorStart(MonitorStep.ResMiddleware, md.Name)
-
-			err := md.OnResponse(
-				request,
-				response,
-				func(sendInstead *Response) {
-					response = sendInstead
-				},
-			)
-
-			request.monitorEnd(MonitorStep.ResMiddleware, md.Name)
-
-			if err != nil {
-				request.Logger.Errorf("middleware %s response handler returned an error", md.Name)
-				response = Respond.InternalError()
-				return response.send(request)
-			}
-		}
-
-		if response == nil {
-			request.Logger.Errorf("endpoint handler did not return a response [path=%s]", fullpath)
-			response = Respond.InternalError()
-			return response.send(request)
-		}
-
-		if response.customHandler != nil {
-			return response.send(request)
-		}
-
-		if response.StreamingSettings == nil {
-			response.StreamingSettings = streamSettings
-		}
-
-		cp := resolveCachePolicy(cachePolicy, response)
-		if cp != nil {
-			if cp.Vary != nil && len(cp.Vary) > 0 {
-				response.Headers.Set("Vary", cp.VaryHeader())
-			}
-
-			if response.Status < 300 && request.Method == "GET" {
-				response.Headers.Set("Cache-Control", cp.CacheControlHeader())
-
-				if !cp.DisableETagGeneration {
-					request.monitorStart(MonitorStep.EtagHandler, "")
-					AddEtag(response)
-					request.monitorEnd(MonitorStep.EtagHandler, "")
-				}
-
-				if !cp.DisableAutoResponseSkipping {
-					etag := response.Headers.Get("ETag")
-					if etag != "" {
-						ifNoneMatch := request.Headers.Get("If-None-Match")
-						if etag == ifNoneMatch {
-							response.Status = 304
-							response.Body = nil
-							response.streamReader = nil
-							response.streamWriter = nil
-							response.customHandler = nil
-							return response.send(request)
-						}
-					}
-				}
-			}
-		}
-
-		if response.Encoding == "" {
-			response.Encoding = defaultEncoding
-		}
-
-		return response.send(request)
+		resp := createResponse(ctx, request)
+		resp = responseMiddlewares(request, resp)
+		return resp.send(request)
 	}
 
 	switch method {

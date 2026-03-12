@@ -159,7 +159,7 @@ func (e *WebSocketEndpoint) Register(parent EndpointParent) {
 			for _, authHandler := range authHandlers {
 				auth := authHandler(request)
 				if !auth.IsSuccessful() {
-					return auth.SendResponse(request)
+					return auth.GetResponse().send(request)
 				}
 			}
 		}
