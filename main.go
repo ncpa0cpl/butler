@@ -19,6 +19,7 @@ import (
 	"github.com/labstack/gommon/log"
 	"github.com/ncpa0cpl/butler/echo_middleware/cors"
 	"github.com/ncpa0cpl/butler/swag"
+	"github.com/quic-go/quic-go/http3"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
@@ -62,8 +63,10 @@ type Server struct {
 	middlewares          []Middleware
 	usageMonitor         UsageMonitor
 	requestLoggerHandler LogHandler
-	httpVersion          string
+	http2                bool
 	http2Options         *http2.Server
+	http3                bool
+	http3Server          *http3.Server
 	cancelFn             context.CancelFunc
 }
 
@@ -75,12 +78,11 @@ func CreateServer() *Server {
 	e.Logger = slog.New(log.SlogHandler())
 
 	return &Server{
-		Port:        80,
-		Cors:        &CorsSettings{},
-		log:         log,
-		echo:        e,
-		endpoints:   []EndpointInterface{},
-		httpVersion: "1",
+		Port:      80,
+		Cors:      &CorsSettings{},
+		log:       log,
+		echo:      e,
+		endpoints: []EndpointInterface{},
 	}
 }
 
@@ -130,13 +132,18 @@ func (server *Server) Use(middleware Middleware) {
 	server.middlewares = append(server.middlewares, middleware)
 }
 
-func (server *Server) UseHttp1() {
-	server.httpVersion = "1"
+func (server *Server) EnableHttp2(options *http2.Server) {
+	server.http2 = true
+
+	if options != nil {
+		server.http2Options = options
+	} else {
+		server.http2Options = &http2.Server{}
+	}
 }
 
-func (server *Server) UseHttp2(options *http2.Server) {
-	server.httpVersion = "2"
-	server.http2Options = options
+func (server *Server) EnableHttp3() {
+	server.http3 = true
 }
 
 // Automatically redirect all HTTP requests to a HTTPS equivalent
@@ -161,7 +168,7 @@ func (server *Server) Listen() error {
 		Address: fmt.Sprintf(":%v", server.Port),
 	}
 
-	if server.httpVersion == "2" {
+	if server.http2 {
 		h2Handler := h2c.NewHandler(server.echo, server.http2Options)
 		if err := sc.Start(ctx, h2Handler); err != nil {
 			server.log.Error(err)
@@ -194,29 +201,45 @@ func (server *Server) ListenTLS(certFile, keyFile any) error {
 		TLSConfig: tlsConf,
 	}
 
-	if server.httpVersion == "2" {
-		sc.TLSConfig.MinVersion = tls.VersionTLS12
+	if server.http3 {
+		server.http3Server = &http3.Server{
+			Addr:      fmt.Sprintf(":%v", server.Port),
+			TLSConfig: tlsConf,
+			Logger:    server.echo.Logger,
+			Handler:   server.echo,
+		}
+
+		server.echo.Pre(func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c *echo.Context) error {
+				return server.http3Server.SetQUICHeaders(c.Response().Header())
+			}
+		})
+
+		go func() {
+			if err := server.http3Server.ListenAndServe(); err != nil {
+				server.log.Error(err)
+			}
+		}()
+	}
+
+	if server.http2 {
 		sc.TLSConfig.NextProtos = []string{"h2", "http/1.1"}
 		sc.BeforeServeFunc = func(s *http.Server) error {
 			return http2.ConfigureServer(s, server.http2Options)
 		}
-
-		if err := sc.Start(ctx, server.echo); err != nil {
-			server.log.Error(err)
-		}
-
-		return err
 	}
 
 	if err := sc.Start(ctx, server.echo); err != nil {
 		server.log.Error(err)
 	}
-
 	return err
 }
 
 func (server *Server) Close() {
 	server.cancelFn()
+	if server.http3Server != nil {
+		server.http3Server.Close()
+	}
 }
 
 // add a handler function that can intercept logs made within request handlers, modify them or act on them
