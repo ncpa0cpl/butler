@@ -64,7 +64,7 @@ type Server struct {
 	usageMonitor         UsageMonitor
 	requestLoggerHandler LogHandler
 	http2                bool
-	http2Options         *http2.Server
+	http2Server          *http2.Server
 	http3                bool
 	http3Server          *http3.Server
 	cancelFn             context.CancelFunc
@@ -132,18 +132,41 @@ func (server *Server) Use(middleware Middleware) {
 	server.middlewares = append(server.middlewares, middleware)
 }
 
-func (server *Server) EnableHttp2(options *http2.Server) {
+/*
+adds HTTP/2 support to the underlying net/http Server
+
+to change configuration options for HTTP/2 an *http2.Server{}
+can be given as the first argument like so:
+
+	app.EnableHttp2(&http2.Server{ IdleTimeout: 10 * time.Second })
+*/
+func (server *Server) EnableHttp2(options ...*http2.Server) {
 	server.http2 = true
 
-	if options != nil {
-		server.http2Options = options
+	if len(options) > 0 && options[0] != nil {
+		server.http2Server = options[0]
 	} else {
-		server.http2Options = &http2.Server{}
+		server.http2Server = &http2.Server{}
 	}
 }
 
-func (server *Server) EnableHttp3() {
+/*
+when enabled it will start an adjacent HTTP/3 server, next to a reglar net/http Server,
+listening for UDP connections
+
+to change configuration options for HTTP/3 an *http3.Server{}
+can be given as the first argument like so:
+
+	app.EnableHttp3(&http3.Server{ IdleTimeout: 10 * time.Second })
+*/
+func (server *Server) EnableHttp3(options ...*http3.Server) {
 	server.http3 = true
+
+	if len(options) > 0 && options[0] != nil {
+		server.http3Server = options[0]
+	} else {
+		server.http3Server = &http3.Server{}
+	}
 }
 
 // Automatically redirect all HTTP requests to a HTTPS equivalent
@@ -169,7 +192,7 @@ func (server *Server) Listen() error {
 	}
 
 	if server.http2 {
-		h2Handler := h2c.NewHandler(server.echo, server.http2Options)
+		h2Handler := h2c.NewHandler(server.echo, server.http2Server)
 		if err := sc.Start(ctx, h2Handler); err != nil {
 			server.log.Error(err)
 		}
@@ -202,12 +225,10 @@ func (server *Server) ListenTLS(certFile, keyFile any) error {
 	}
 
 	if server.http3 {
-		server.http3Server = &http3.Server{
-			Addr:      fmt.Sprintf(":%v", server.Port),
-			TLSConfig: tlsConf.Clone(),
-			Logger:    server.echo.Logger,
-			Handler:   server.echo,
-		}
+		server.http3Server.Addr = fmt.Sprintf(":%v", server.Port)
+		server.http3Server.TLSConfig = tlsConf.Clone()
+		server.http3Server.Logger = server.echo.Logger
+		server.http3Server.Handler = server.echo
 
 		server.echo.Pre(func(next echo.HandlerFunc) echo.HandlerFunc {
 			return func(c *echo.Context) error {
@@ -229,7 +250,7 @@ func (server *Server) ListenTLS(certFile, keyFile any) error {
 	if server.http2 {
 		sc.TLSConfig.NextProtos = []string{"h2", "http/1.1"}
 		sc.BeforeServeFunc = func(s *http.Server) error {
-			return http2.ConfigureServer(s, server.http2Options)
+			return http2.ConfigureServer(s, server.http2Server)
 		}
 	}
 
