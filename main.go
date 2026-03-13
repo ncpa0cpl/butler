@@ -211,7 +211,11 @@ func (server *Server) ListenTLS(certFile, keyFile any) error {
 
 		server.echo.Pre(func(next echo.HandlerFunc) echo.HandlerFunc {
 			return func(c *echo.Context) error {
-				return server.http3Server.SetQUICHeaders(c.Response().Header())
+				err := server.http3Server.SetQUICHeaders(c.Response().Header())
+				if err != nil {
+					return err
+				}
+				return next(c)
 			}
 		})
 
