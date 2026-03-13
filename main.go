@@ -204,7 +204,7 @@ func (server *Server) ListenTLS(certFile, keyFile any) error {
 	if server.http3 {
 		server.http3Server = &http3.Server{
 			Addr:      fmt.Sprintf(":%v", server.Port),
-			TLSConfig: tlsConf,
+			TLSConfig: tlsConf.Clone(),
 			Logger:    server.echo.Logger,
 			Handler:   server.echo,
 		}
