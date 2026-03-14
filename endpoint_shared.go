@@ -3,7 +3,7 @@ package butler
 import (
 	"fmt"
 	"net/http"
-	"runtime"
+	"runtime/debug"
 
 	echo "github.com/labstack/echo/v5"
 )
@@ -214,15 +214,10 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 				if !ok {
 					err = fmt.Errorf("%v", r)
 				}
-				var stack []byte
-				var length int
 
-				stack = make([]byte, Units.MB)
-				length = runtime.Stack(stack, true)
-				stack = stack[:length]
-
-				msg := fmt.Sprintf("[PANIC RECOVERY] %v %s", err, stack)
-				request.Logger.Fatal(msg)
+				request.Logger.Fatal(
+					fmt.Sprintf("[PANIC RECOVERY] %v \n%s", err, debug.Stack()),
+				)
 
 				request.saveSessions()
 

@@ -3,7 +3,7 @@ package butler
 import (
 	"fmt"
 	"net/http"
-	"runtime"
+	"runtime/debug"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -142,15 +142,11 @@ func (e *WebSocketEndpoint) Register(parent EndpointParent) {
 				if !ok {
 					err = fmt.Errorf("%v", r)
 				}
-				var stack []byte
-				var length int
 
-				stack = make([]byte, Units.MB)
-				length = runtime.Stack(stack, true)
-				stack = stack[:length]
+				request.Logger.Fatal(
+					fmt.Sprintf("[PANIC RECOVERY] %v \n%s", err, debug.Stack()),
+				)
 
-				msg := fmt.Sprintf("[PANIC RECOVERY] %v %s", err, stack[:length])
-				request.Logger.Fatal(msg)
 				resultErr = ctx.NoContent(500)
 			}
 		}()
