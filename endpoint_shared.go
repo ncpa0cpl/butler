@@ -294,7 +294,10 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 		request.monitorStart(MonitorStep.Handler, "")
 		response = Respond.Ok()
-		headers := getHeaders(ctx, request, response.Status)
+		var headers *Headers
+		if getHeaders != nil {
+			headers = getHeaders(ctx, request, response.Status)
+		}
 		if headers != nil {
 			response.SetHeaders(headers)
 		}
@@ -307,9 +310,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 	switch method {
 	case "GET":
 		echoServer.GET(fullpath, handler)
-		if getHeaders != nil {
-			echoServer.HEAD(fullpath, headHandler)
-		}
+		echoServer.HEAD(fullpath, headHandler)
 		return
 	case "POST":
 		echoServer.POST(fullpath, handler)

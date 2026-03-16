@@ -16,6 +16,8 @@ type FileLoader interface {
 	ContentType() string
 	ModTime() string
 	IsDir() bool
+	AllowStreaming() bool
+	AllowEncoding() bool
 	Close()
 }
 
@@ -40,6 +42,17 @@ func (l DefaultFileLoader) Size() int64 {
 
 func (l DefaultFileLoader) IsDir() bool {
 	return l.stat.IsDir()
+}
+
+func (l DefaultFileLoader) AllowStreaming() bool {
+	ctype := l.ContentType()
+	return ctype != "text/javascript" && ctype != "text/html" &&
+		ctype != "text/css" && ctype != "application/json" &&
+		l.Size() > Units.MB
+}
+
+func (l DefaultFileLoader) AllowEncoding() bool {
+	return true
 }
 
 func (l DefaultFileLoader) ModTime() string {

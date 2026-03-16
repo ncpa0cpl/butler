@@ -249,6 +249,10 @@ func (resp *Response) FileLoader(fileLoader FileLoader, contentTypeOverride ...s
 		} else {
 			resp.Headers.Set("Content-Type", fileLoader.ContentType())
 		}
+
+		if fileLoader.AllowEncoding() == false {
+			resp.Encoding = "none"
+		}
 	}
 
 	return resp
@@ -430,6 +434,10 @@ func (resp *Response) send(request *Request) error {
 }
 
 func (resp *Response) encodeBody(request *Request) error {
+	if len(resp.Body) == 0 {
+		return nil
+	}
+
 	enc := resp.Encoding
 
 	if enc == "auto" {

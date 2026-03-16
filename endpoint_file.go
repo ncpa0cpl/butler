@@ -11,7 +11,9 @@ import (
 )
 
 type FsEndpoint struct {
+	// The URL path under which the files will be served
 	Path string
+	// Path to the local directory from which to serve files
 	Dir  string
 	Auth AuthHandler
 	// Specifies the Content Encoding that should be used for the endpoint responses
@@ -142,13 +144,9 @@ func (e *FsEndpoint) Register(parent EndpointParent) {
 	if e.Handler == nil {
 		e.isCustomHandler = false
 		e.Handler = func(request *Request, loader FileLoader) *Response {
-			fmime := loader.ContentType()
-
 			var response *Response
 
-			if e.DisableStreaming || fmime == "text/javascript" || fmime == "text/html" ||
-				fmime == "text/css" || fmime == "application/json" ||
-				loader.Size() < Units.MB {
+			if e.DisableStreaming || !loader.AllowStreaming() {
 				response = Respond.Ok().FileLoader(loader)
 			} else {
 				response = Respond.Ok().StreamFileLoader(loader)
@@ -223,53 +221,53 @@ func (e *FsEndpoint) calculateContentLength(loader FileLoader, req *Request) (st
 	data, err := loader.ReadAll()
 
 	if requestedRange == nil {
-
 		if err != nil {
 			return "", ""
 		}
 
-		enc := e.GetEncoding()
+		finalLen := len(data)
+		var finalEnc string
 
-		if enc == "auto" || enc == "" {
-			enc = resolveAutoEncoding(
-				contentType,
-				req.Headers.Get("Accept-Encoding"),
-				data,
-			)
+		if loader.AllowEncoding() {
+			enc := e.GetEncoding()
+
+			if enc == "auto" || enc == "" {
+				enc = resolveAutoEncoding(
+					contentType,
+					req.Headers.Get("Accept-Encoding"),
+					data,
+				)
+			}
+
+			acceptedEncodings := req.Headers.Get("Accept-Encoding")
+			var encodedData *bytes.Buffer
+			switch enc {
+			case "brotli":
+				if len(data) >= BROTLI_MIN_SIZE && strings.Contains(acceptedEncodings, "br") {
+					encodedData, err = Brotli(data)
+					finalLen = encodedData.Len()
+					finalEnc = "brotli"
+				}
+			case "deflate":
+				if len(data) >= DEFLATE_MIN_SIZE && strings.Contains(acceptedEncodings, "deflate") {
+					encodedData, err = Deflate(data)
+					finalLen = encodedData.Len()
+					finalEnc = "deflate"
+				}
+			case "gzip":
+				if len(data) >= GZIP_MIN_SIZE && strings.Contains(acceptedEncodings, "gzip") {
+					encodedData, err = GZip(data)
+					finalLen = encodedData.Len()
+					finalEnc = "gzip"
+				}
+			}
+
+			if err != nil {
+				return "", ""
+			}
 		}
 
-		encodedLen := len(data)
-
-		acceptedEncodings := req.Headers.Get("Accept-Encoding")
-
-		var encodedData *bytes.Buffer
-		var retEncoding string
-		switch enc {
-		case "brotli":
-			if len(data) >= BROTLI_MIN_SIZE && strings.Contains(acceptedEncodings, "br") {
-				encodedData, err = Brotli(data)
-				encodedLen = encodedData.Len()
-				retEncoding = "brotli"
-			}
-		case "deflate":
-			if len(data) >= DEFLATE_MIN_SIZE && strings.Contains(acceptedEncodings, "deflate") {
-				encodedData, err = Deflate(data)
-				encodedLen = encodedData.Len()
-				retEncoding = "deflate"
-			}
-		case "gzip":
-			if len(data) >= GZIP_MIN_SIZE && strings.Contains(acceptedEncodings, "gzip") {
-				encodedData, err = GZip(data)
-				encodedLen = encodedData.Len()
-				retEncoding = "gzip"
-			}
-		}
-
-		if err != nil {
-			return "", ""
-		}
-
-		return strconv.Itoa(encodedLen), retEncoding
+		return strconv.Itoa(finalLen), finalEnc
 	} else {
 		dataSize := len(data)
 		if !requestedRange.HasEnd {
