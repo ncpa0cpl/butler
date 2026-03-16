@@ -40,6 +40,9 @@ type FsEndpoint struct {
 	//   }
 	Head func(request *Request, fullFilepath string, status int) *Headers
 	// Optional handler function
+	//
+	// If not specified a default handler will be used that returns either
+	// a `Respond.Ok().FileLoader(loader)` or `Respond.Ok().StreamFileLoader(loader)`
 	Handler         func(request *Request, loader FileLoader) *Response
 	isCustomHandler bool
 	// Optional function for generating an ETag
