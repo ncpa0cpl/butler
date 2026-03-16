@@ -3,10 +3,6 @@ package butler
 import (
 	"bytes"
 	"fmt"
-	"io"
-	"io/fs"
-	"net/http"
-	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -44,12 +40,7 @@ type FsEndpoint struct {
 	//   }
 	Head func(request *Request, fullFilepath string, status int) *Headers
 	// Optional handler function
-	Handler func(
-		request *Request,
-		fullFilepath string,
-		file *os.File,
-		fstat os.FileInfo,
-	) *Response
+	Handler         func(request *Request, loader FileLoader) *Response
 	isCustomHandler bool
 	// Optional function for generating an ETag
 	//
@@ -61,6 +52,11 @@ type FsEndpoint struct {
 	// If this function is nil, Butler will instead read the response body and
 	// generate a hash to be used as an ETag
 	GetEtag func(request *Request, fullFilepath string) string
+	// optional
+	//
+	// Specify to use a custom file loader. butler.DefaultFileLoader will be
+	// used if not specified
+	FileLoader func() FileLoader
 
 	Description string
 	Name        string
@@ -134,24 +130,25 @@ func (e *FsEndpoint) Register(parent EndpointParent) {
 
 	e.parent = parent
 
+	if e.FileLoader == nil {
+		e.FileLoader = func() FileLoader {
+			return &DefaultFileLoader{}
+		}
+	}
+
 	if e.Handler == nil {
 		e.isCustomHandler = false
-		e.Handler = func(
-			request *Request,
-			fpath string,
-			file *os.File,
-			fstat os.FileInfo,
-		) *Response {
-			fmime := Mime.DetectFile(fpath, file)
+		e.Handler = func(request *Request, loader FileLoader) *Response {
+			fmime := loader.ContentType()
 
 			var response *Response
 
 			if e.DisableStreaming || fmime == "text/javascript" || fmime == "text/html" ||
 				fmime == "text/css" || fmime == "application/json" ||
-				fstat.Size() < Units.MB {
-				response = Respond.Ok().FileHandle(file, fmime)
+				loader.Size() < Units.MB {
+				response = Respond.Ok().FileLoader(loader)
 			} else {
-				response = Respond.Ok().StreamFileHandle(file, fmime)
+				response = Respond.Ok().StreamFileLoader(loader)
 			}
 
 			return response
@@ -175,34 +172,35 @@ func (e *FsEndpoint) BindParams(*Request) *ParamParsingError {
 	return nil
 }
 
+func (e *FsEndpoint) loadFile(request *Request, filepath string) (FileLoader, error) {
+	loader, ok := request.Data["_fileloader"].(FileLoader)
+	if ok {
+		return loader, nil
+	}
+
+	loader = e.FileLoader()
+	err := loader.Load(filepath)
+	if err == nil {
+		request.Data["_fileloader"] = loader
+	}
+
+	return loader, err
+}
+
 func (e *FsEndpoint) ExecuteHandler(ctx *echo.Context, request *Request) (retVal *Response) {
 	filepath := ctx.Param("*")
 	fullFilepath := path.Join(e.Dir, filepath)
 
-	if !fileExists(fullFilepath) {
-		return Respond.NotFound()
-	}
-
-	file, err := os.Open(fullFilepath)
+	loader, err := e.loadFile(request, fullFilepath)
 	if err != nil {
-		request.Logger.Error("failed to open file: ", fullFilepath)
 		return Respond.InternalError()
 	}
 
-	stat, err := file.Stat()
-	if err != nil {
-		request.Logger.Error("failed to get file stat: ", fullFilepath)
-		return Respond.InternalError()
-	}
-
-	if stat.IsDir() {
+	if loader.IsDir() {
 		return Respond.NotFound()
 	}
 
-	request.Data["_filehandle"] = file
-	request.Data["_filestat"] = stat
-
-	resp := e.Handler(request, fullFilepath, file, stat)
+	resp := e.Handler(request, loader)
 
 	if e.DisableStreaming {
 		resp.SetAllowStreaming(false)
@@ -211,18 +209,15 @@ func (e *FsEndpoint) ExecuteHandler(ctx *echo.Context, request *Request) (retVal
 	return resp
 }
 
-func (e *FsEndpoint) calculateContentLength(fpath string, file *os.File, req *Request) (string, string) {
+func (e *FsEndpoint) calculateContentLength(loader FileLoader, req *Request) (string, string) {
 	var err error
 	requestedRange, err := parseRangeHeader(req.Headers)
 	if err != nil {
 		return "", ""
 	}
 
-	contentType := Mime.DetectFile(fpath, file)
-
-	file.Seek(0, 0)
-	data, err := io.ReadAll(file)
-	file.Seek(0, 0)
+	contentType := loader.ContentType()
+	data, err := loader.ReadAll()
 
 	if requestedRange == nil {
 
@@ -298,40 +293,17 @@ func (e *FsEndpoint) GetHeadHandler() HeadHandler {
 			filepath := ctx.Param("*")
 			fullFilepath := path.Join(e.Dir, filepath)
 
-			var file *os.File
-			var fstat fs.FileInfo
+			loader, err := e.loadFile(request, fullFilepath)
 
-			if f, ok := request.Data["_filehandle"]; ok {
-				file = f.(*os.File)
-			} else {
-				f, err := os.Open(fullFilepath)
-				if err != nil {
-					return nil
-				}
-
-				file = f
-			}
-
-			if s, ok := request.Data["_filestat"]; ok {
-				fstat = s.(fs.FileInfo)
-			} else {
-				s, err := file.Stat()
-				if err != nil {
-					return nil
-				}
-
-				fstat = s
-			}
-
-			if fstat.IsDir() {
+			if err != nil || loader.IsDir() {
 				return nil
 			}
 
-			headers := NewHeaders().Set("Last-Modified", fstat.ModTime().Format(http.TimeFormat))
+			headers := NewHeaders().Set("Last-Modified", loader.ModTime())
 
 			if request.Method == "HEAD" {
 				len, enc := e.calculateContentLength(
-					filepath, file, request,
+					loader, request,
 				)
 				// for get requests length will be set by the response sender
 				headers.Set("Content-Length", len)

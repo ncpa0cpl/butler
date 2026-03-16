@@ -210,9 +210,9 @@ func (resp *Response) File(filepath string, contentType ...string) *Response {
 //
 // Call to this function will close the given `filehandle`
 func (resp *Response) FileHandle(filehandle *os.File, contentType ...string) *Response {
+	defer filehandle.Close()
 	filehandle.Seek(0, 0)
 	data, err := io.ReadAll(filehandle)
-	filehandle.Close()
 
 	if err != nil {
 		resp.Status = 500
@@ -225,6 +225,53 @@ func (resp *Response) FileHandle(filehandle *os.File, contentType ...string) *Re
 		} else {
 			resp.Headers.Set("Content-Type", http.DetectContentType(data))
 		}
+	}
+
+	return resp
+}
+
+// send the contents of the given FileLoader with the specified `contentType`, if `contentType` argument
+// is not specified it will be set to whatever the loader reports
+//
+// Call to this function will close the given FileLoader
+func (resp *Response) FileLoader(fileLoader FileLoader, contentTypeOverride ...string) *Response {
+	defer fileLoader.Close()
+	data, err := fileLoader.ReadAll()
+
+	if err != nil {
+		resp.Status = 500
+		resp.logs = append(resp.logs, responseLog{"error", "unable to read the given file", err})
+	} else {
+		resp.Body = data
+
+		if len(contentTypeOverride) > 0 {
+			resp.Headers.Set("Content-Type", contentTypeOverride[len(contentTypeOverride)-1])
+		} else {
+			resp.Headers.Set("Content-Type", fileLoader.ContentType())
+		}
+	}
+
+	return resp
+}
+
+// send the contents of the given FileLoader with the specified `contentType`, if `contentType` argument
+// is not specified it will be set to whatever the loader reports
+//
+// Call to this function will close the given FileLoader
+func (resp *Response) StreamFileLoader(fileLoader FileLoader, contentTypeOverride ...string) *Response {
+	reader, err := fileLoader.Reader()
+	if err != nil {
+		resp.Status = 500
+		resp.logs = append(resp.logs, responseLog{"error", "unable to read the given file", err})
+	}
+
+	resp.Body = nil
+	resp.streamReader = reader
+
+	if len(contentTypeOverride) > 0 {
+		resp.Headers.Set("Content-Type", contentTypeOverride[len(contentTypeOverride)-1])
+	} else {
+		resp.Headers.Set("Content-Type", fileLoader.ContentType())
 	}
 
 	return resp
