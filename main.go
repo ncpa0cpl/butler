@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"slices"
 	"syscall"
+	"time"
 
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/v5/session"
@@ -263,7 +264,9 @@ func (server *Server) ListenTLS(certFile, keyFile any) error {
 func (server *Server) Close() {
 	server.cancelFn()
 	if server.http3Server != nil {
-		server.http3Server.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		server.http3Server.Shutdown(ctx)
 	}
 }
 
