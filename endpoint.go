@@ -16,7 +16,25 @@ type Endpoint[T any, B any] struct {
 	// when receiving a request with a If-None-Match header.
 	CachePolicy       *HttpCachePolicy
 	StreamingSettings *StreamingSettings
-	Handler           func(request *Request, params T, body *B) *Response
+	// A handler function for adding headers to the response.
+	//
+	// Header values set by this handler take priority over what the Handler
+	// defines.
+	//
+	// This function is also used to generate responses to http HEAD requests.
+	//
+	// Example:
+	//   import (b "github.com/ncpa0cpl/butler")
+	//
+	//   b.Endpoint[Params, Body]{
+	//     Head: func(req *b.Request, p Params, s int) *b.Headers {
+	// 	     return b.NewHeaders().
+	// 	     	Set("Expires", "2026-03-16T12:00:00").
+	// 	     	Set("X-Powered-By", "http-butler")
+	//     },
+	//   }
+	Head    func(request *Request, params T, respStatus int) *Headers
+	Handler func(request *Request, params T, body *B) *Response
 	// Optional function for generating an ETag
 	//
 	// Value returned by this function will be set in the response Etag header.
@@ -116,6 +134,17 @@ func (e *Endpoint[T, B]) ExecuteHandler(ctx *echo.Context, request *Request) (re
 
 	response := e.Handler(request, params, body)
 	return response
+}
+
+func (e *Endpoint[T, B]) GetHeadHandler() HeadHandler {
+	if e.Head == nil {
+		return nil
+	}
+
+	return func(ctx *echo.Context, request *Request, status int) *Headers {
+		params := request.GetParamsInterface().(T)
+		return e.Head(request, params, status)
+	}
 }
 
 func (e *Endpoint[T, B]) Register(parent EndpointParent) {

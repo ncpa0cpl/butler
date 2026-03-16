@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v5"
@@ -75,8 +76,13 @@ func (resp *Response) SetCachePolicy(policy *HttpCachePolicy) *Response {
 }
 
 // replaces all the headers of this response
-func (resp *Response) SetHeaders(headers Headers) *Response {
-	resp.Headers = headers
+func (resp *Response) SetHeaders(headers *Headers) *Response {
+	if headers != nil {
+		resp.Headers = *headers
+	} else {
+		resp.Headers = Headers{}
+	}
+
 	return resp
 }
 
@@ -351,7 +357,8 @@ func (resp *Response) send(request *Request) error {
 		request.Logger.Error(encodeErr)
 	}
 
-	resp.Headers.CopyInto(ctx.Response().Header())
+	respHeaders := ctx.Response().Header()
+	resp.Headers.CopyInto(respHeaders)
 	request.saveSessions()
 
 	if resp.streamWriter != nil {
@@ -364,8 +371,10 @@ func (resp *Response) send(request *Request) error {
 
 	if resp.Body != nil && len(resp.Body) > 0 {
 		if resp.shouldAutoStream(request) {
+			respHeaders.Del("Content-Length")
 			return resp.stream(ctx, request)
 		} else {
+			respHeaders.Set("Content-Length", strconv.Itoa(len(resp.Body)))
 			return ctx.Blob(resp.Status, resp.Headers.Get("Content-Type"), resp.Body)
 		}
 	}
@@ -377,7 +386,11 @@ func (resp *Response) encodeBody(request *Request) error {
 	enc := resp.Encoding
 
 	if enc == "auto" {
-		enc = resolveAutoEncoding(request, resp)
+		enc = resolveAutoEncoding(
+			resp.Headers.Get("Content-Type"),
+			request.Headers.Get("Accept-Encoding"),
+			resp.Body,
+		)
 	}
 
 	if enc == "none" {

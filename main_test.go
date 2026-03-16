@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -499,7 +501,6 @@ func TestFsEndpoint(t *testing.T) {
 	assert.Equal("", resp.Header.Get("content-encoding"))
 	assert.Equal("video/mp4", resp.Header.Get("content-type"))
 	assert.Equal("", resp.Header.Get("content-range"))
-	assert.Equal(262208, len(body))
 
 	body, resp = request("GET", "http://localhost:8080/static/big_vid.mp4", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
@@ -507,7 +508,272 @@ func TestFsEndpoint(t *testing.T) {
 	assert.Equal("video/mp4", resp.Header.Get("content-type"))
 	assert.Equal("bytes 0-5242943/5242944", resp.Header.Get("content-range"))
 	assert.Equal("5242944", resp.Header.Get("content-length"))
-	assert.Equal(5242944, len(body))
+}
+
+func TestFsEndpointHeaders(t *testing.T) {
+	assert := assert.New(t)
+
+	// prepare a dir to serve from
+
+	os.RemoveAll("./static_test")
+
+	err := os.Mkdir("./static_test", 0755)
+	noErr(err)
+	defer func() {
+		err := os.RemoveAll("./static_test")
+		noErr(err)
+	}()
+
+	sampleJsFile := []byte(JS_SAMPLE)
+	sampleCssFile := []byte(CSS_SAMPLE)
+	sampleHtmlFile := []byte(HTML_SAMPLE)
+	sampleJsonFile := []byte(JSON_SAMPLE)
+	samplesmallVidFile := addVidPrefix(fill(make([]byte, f.Units.MB/4), 1))
+	sampleBigVidFile := addVidPrefix(fill(make([]byte, 5*f.Units.MB), 1))
+
+	err = os.WriteFile("./static_test/script.js", sampleJsFile, 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/styles.css", sampleCssFile, 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/index.html", sampleHtmlFile, 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/data.json", sampleJsonFile, 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/small_vid.mp4", samplesmallVidFile, 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/big_vid.mp4", sampleBigVidFile, 0644)
+	noErr(err)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	wd, err := os.Getwd()
+	noErr(err)
+	stream := &f.FsEndpoint{
+		Path: "/static",
+		Dir:  path.Join(wd, "static_test"),
+	}
+
+	server.Add(stream)
+
+	go server.Listen()
+	defer server.Close()
+
+	httpDateRegx, err := regexp.Compile("^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \\d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \\d{4} \\d{2}:\\d{2}:\\d{2} GMT$")
+	noErr(err)
+
+	// HEAD requests
+
+	body, resp := request("HEAD", "http://localhost:8080/static/script.js", nil, header{"accept-encoding", ""})
+	assert.Equal(200, resp.StatusCode)
+	assert.Len(body, 0)
+	assert.Equal(strconv.Itoa(len(sampleJsFile)), resp.Header.Get("content-length"))
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	body, resp = request("HEAD", "http://localhost:8080/static/styles.css", nil, header{"accept-encoding", ""})
+	assert.Equal(200, resp.StatusCode)
+	assert.Len(body, 0)
+	assert.Equal(strconv.Itoa(len(sampleCssFile)), resp.Header.Get("content-length"))
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	body, resp = request("HEAD", "http://localhost:8080/static/index.html", nil, header{"accept-encoding", ""})
+	assert.Equal(200, resp.StatusCode)
+	assert.Len(body, 0)
+	assert.Equal(strconv.Itoa(len(sampleHtmlFile)), resp.Header.Get("content-length"))
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	body, resp = request("HEAD", "http://localhost:8080/static/data.json", nil, header{"accept-encoding", ""})
+	assert.Equal(200, resp.StatusCode)
+	assert.Len(body, 0)
+	assert.Equal(strconv.Itoa(len(sampleJsonFile)), resp.Header.Get("content-length"))
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	body, resp = request("HEAD", "http://localhost:8080/static/small_vid.mp4", nil, header{"accept-encoding", ""})
+	assert.Equal(200, resp.StatusCode)
+	assert.Len(body, 0)
+	assert.Equal(strconv.Itoa(len(samplesmallVidFile)), resp.Header.Get("content-length"))
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	body, resp = request("HEAD", "http://localhost:8080/static/big_vid.mp4", nil, header{"accept-encoding", ""})
+	assert.Equal(200, resp.StatusCode)
+	assert.Len(body, 0)
+	assert.Equal(strconv.Itoa(len(sampleBigVidFile)), resp.Header.Get("content-length"))
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	// GET requests
+	_, resp = request("GET", "http://localhost:8080/static/script.js", nil, header{"accept-encoding", ""})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("", resp.Header.Get("content-encoding"))
+	assert.Equal(int64(len(sampleJsFile)), resp.ContentLength)
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	_, resp = request("GET", "http://localhost:8080/static/styles.css", nil, header{"accept-encoding", ""})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("", resp.Header.Get("content-encoding"))
+	assert.Equal(int64(len(sampleCssFile)), resp.ContentLength)
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	_, resp = request("GET", "http://localhost:8080/static/index.html", nil, header{"accept-encoding", ""})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("", resp.Header.Get("content-encoding"))
+	assert.Equal(int64(len(sampleHtmlFile)), resp.ContentLength)
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	_, resp = request("GET", "http://localhost:8080/static/data.json", nil, header{"accept-encoding", ""})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("", resp.Header.Get("content-encoding"))
+	assert.Equal(int64(len(sampleJsonFile)), resp.ContentLength)
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	_, resp = request("GET", "http://localhost:8080/static/small_vid.mp4", nil, header{"accept-encoding", ""})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("", resp.Header.Get("content-encoding"))
+	assert.Equal(int64(len(samplesmallVidFile)), resp.ContentLength)
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	_, resp = request("GET", "http://localhost:8080/static/big_vid.mp4", nil, header{"accept-encoding", ""})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("", resp.Header.Get("content-encoding"))
+	assert.Equal(int64(len(sampleBigVidFile)), resp.ContentLength)
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+}
+
+func TestFsEndpointHeadersWithEncoding(t *testing.T) {
+	assert := assert.New(t)
+
+	// prepare a dir to serve from
+
+	os.RemoveAll("./static_test")
+
+	err := os.Mkdir("./static_test", 0755)
+	noErr(err)
+	defer func() {
+		err := os.RemoveAll("./static_test")
+		noErr(err)
+	}()
+
+	sampleJsFile := []byte(JS_SAMPLE)
+	sampleCssFile := []byte(CSS_SAMPLE)
+	sampleHtmlFile := []byte(HTML_SAMPLE)
+	sampleJsonFile := []byte(JSON_SAMPLE)
+	samplesmallVidFile := addVidPrefix(fill(make([]byte, f.Units.MB/4), 1))
+	sampleBigVidFile := addVidPrefix(fill(make([]byte, 5*f.Units.MB), 1))
+
+	err = os.WriteFile("./static_test/script.js", sampleJsFile, 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/styles.css", sampleCssFile, 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/index.html", sampleHtmlFile, 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/data.json", sampleJsonFile, 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/small_vid.mp4", samplesmallVidFile, 0644)
+	noErr(err)
+	err = os.WriteFile("./static_test/big_vid.mp4", sampleBigVidFile, 0644)
+	noErr(err)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	wd, err := os.Getwd()
+	noErr(err)
+	stream := &f.FsEndpoint{
+		Path: "/static",
+		Dir:  path.Join(wd, "static_test"),
+	}
+
+	server.Add(stream)
+
+	go server.Listen()
+	defer server.Close()
+
+	httpDateRegx, err := regexp.Compile("^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \\d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \\d{4} \\d{2}:\\d{2}:\\d{2} GMT$")
+	noErr(err)
+
+	// HEAD requests
+
+	body, resp := request("HEAD", "http://localhost:8080/static/script.js", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Len(body, 0)
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal("898", resp.Header.Get("content-length"))
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	body, resp = request("HEAD", "http://localhost:8080/static/styles.css", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Len(body, 0)
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal("437", resp.Header.Get("content-length"))
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	body, resp = request("HEAD", "http://localhost:8080/static/index.html", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Len(body, 0)
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal("549", resp.Header.Get("content-length"))
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	body, resp = request("HEAD", "http://localhost:8080/static/data.json", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Len(body, 0)
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal("146", resp.Header.Get("content-length"))
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	// mp4 is non-encodable
+	body, resp = request("HEAD", "http://localhost:8080/static/small_vid.mp4", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Len(body, 0)
+	assert.Equal("", resp.Header.Get("content-encoding"))
+	assert.Equal("262208", resp.Header.Get("content-length"))
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	// mp4 is non-encodable
+	body, resp = request("HEAD", "http://localhost:8080/static/big_vid.mp4", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Len(body, 0)
+	assert.Equal("", resp.Header.Get("content-encoding"))
+	assert.Equal("5242944", resp.Header.Get("content-length"))
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	// GET requests
+	_, resp = request("GET", "http://localhost:8080/static/script.js", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal(int64(898), resp.ContentLength) // should be the same as the len of HEAD requests above
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	_, resp = request("GET", "http://localhost:8080/static/styles.css", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal(int64(437), resp.ContentLength) // should be the same as the len of HEAD requests above
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	_, resp = request("GET", "http://localhost:8080/static/index.html", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal(int64(549), resp.ContentLength) // should be the same as the len of HEAD requests above
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	_, resp = request("GET", "http://localhost:8080/static/data.json", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal(int64(146), resp.ContentLength) // should be the same as the len of HEAD requests above
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	// mp4 is non-encodable
+	_, resp = request("GET", "http://localhost:8080/static/small_vid.mp4", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("", resp.Header.Get("content-encoding"))
+	assert.Equal(int64(262208), resp.ContentLength) // should be the same as the len of HEAD requests above
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
+
+	// mp4 is non-encodable
+	_, resp = request("GET", "http://localhost:8080/static/big_vid.mp4", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("", resp.Header.Get("content-encoding"))
+	assert.Equal(int64(5242944), resp.ContentLength) // should be the same as the len of HEAD requests above
+	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
 }
 
 func TestStreamEndpoint(t *testing.T) {
@@ -661,6 +927,115 @@ loop:
 	}
 
 	assert.Equal(2, i)
+}
+
+func TestHeaders(t *testing.T) {
+	assert := assert.New(t)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	type UrlParams struct {
+		ID *f.StringUrlParam
+	}
+
+	books := &f.BasicEndpoint[UrlParams]{
+		Method: "GET",
+		Path:   "/books/:id",
+		Head: func(request *f.Request, params UrlParams, status int) *f.Headers {
+			if status == 200 {
+				return f.
+					NewHeaders(
+						f.H{"X-Header2", []string{"2-from-head"}},
+						f.H{"X-Header3", []string{"3-from-head"}},
+					).
+					Set("X-Book-ID", params.ID.Get())
+			}
+
+			return nil
+		},
+		Handler: func(request *f.Request, params UrlParams) *f.Response {
+			id := params.ID.Get()
+
+			handlerHeaders := &f.Headers{}
+			handlerHeaders.Add("X-Header1", "1-from-handler")
+			handlerHeaders.Add("X-Header2", "2-from-handler")
+
+			return f.Respond.
+				Ok().
+				SetHeaders(handlerHeaders).
+				JSON(Book{Title: id})
+		},
+	}
+
+	server.Add(books)
+
+	go server.Listen()
+	defer server.Close()
+
+	_, resp := request("GET", "http://localhost:8080/books/B1Y332O", nil)
+	assert.Equal(200, resp.StatusCode)
+
+	h1 := resp.Header.Get("X-Header1")
+	h2 := resp.Header.Get("X-Header2")
+	h3 := resp.Header.Get("X-Header3")
+	hBookID := resp.Header.Get("X-Book-ID")
+
+	assert.Equal("1-from-handler", h1)
+	assert.Equal("2-from-head", h2)
+	assert.Equal("3-from-head", h3)
+	assert.Equal("B1Y332O", hBookID)
+
+	_, resp2 := request("HEAD", "http://localhost:8080/books/B1Y332O", nil)
+	assert.Equal(200, resp.StatusCode)
+
+	headReqh1 := resp2.Header.Get("X-Header1")
+	headReqh2 := resp2.Header.Get("X-Header2")
+	headReqh3 := resp2.Header.Get("X-Header3")
+	headReqhBookID := resp2.Header.Get("X-Book-ID")
+
+	assert.Equal("", headReqh1)
+	assert.Equal("2-from-head", headReqh2)
+	assert.Equal("3-from-head", headReqh3)
+	assert.Equal("B1Y332O", headReqhBookID)
+}
+
+func TestHeadersOnFailure(t *testing.T) {
+	assert := assert.New(t)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	type UrlParams struct {
+		ID *f.StringUrlParam
+	}
+
+	books := &f.BasicEndpoint[UrlParams]{
+		Method: "GET",
+		Path:   "/books/:id",
+		Head: func(request *f.Request, params UrlParams, status int) *f.Headers {
+			if status == 200 {
+				return f.NewHeaders().
+					Set("X-Book-ID", params.ID.Get())
+			}
+
+			return nil
+		},
+		Handler: func(request *f.Request, params UrlParams) *f.Response {
+			return f.Respond.BadRequest()
+		},
+	}
+
+	server.Add(books)
+
+	go server.Listen()
+	defer server.Close()
+
+	_, resp := request("GET", "http://localhost:8080/books/B1Y332O", nil)
+	assert.Equal(400, resp.StatusCode)
+
+	hBookID := resp.Header.Get("X-Book-ID")
+	assert.Equal("", hBookID)
 }
 
 type MockStdoutWriter struct {

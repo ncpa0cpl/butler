@@ -10,6 +10,8 @@ import (
 
 const ENDPOINT_REQ_PARAMS_KEY = "__endpoint_req_params_interface"
 
+type HeadHandler = func(ctx *echo.Context, request *Request, respStatus int) *Headers
+
 type AnyEndpoint interface {
 	GetPath() string
 	GetMethod() string
@@ -21,6 +23,7 @@ type AnyEndpoint interface {
 	GetMiddlewares() []Middleware
 	BindParams(request *Request) *ParamParsingError
 	EtagGenerator() func(request *Request) string
+	GetHeadHandler() HeadHandler
 }
 
 func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
@@ -36,6 +39,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 	fullpath := e.GetPath()
 	method := e.GetMethod()
 	getEtag := e.EtagGenerator()
+	getHeaders := e.GetHeadHandler()
 
 	reqMiddlewares := getReqMiddlewares(middlewares)
 	respMiddlewares := getRespMiddlewares(middlewares)
@@ -143,6 +147,12 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 			request.monitorStart(MonitorStep.Handler, "")
 			response = e.ExecuteHandler(ctx, request)
+			if response != nil && getHeaders != nil {
+				headers := getHeaders(ctx, request, response.Status)
+				if headers != nil {
+					headers.CopyInto(&response.Headers)
+				}
+			}
 			request.monitorEnd(MonitorStep.Handler, "")
 		}
 
@@ -230,9 +240,76 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 		return resp.send(request)
 	}
 
+	headHandler := func(ctx *echo.Context) (result error) {
+		request := NewRequest(ctx, monitor, parent)
+		defer request.completeMonitor()
+
+		defer func() {
+			if r := recover(); r != nil {
+				if r == http.ErrAbortHandler {
+					panic(r)
+				}
+				err, ok := r.(error)
+				if !ok {
+					err = fmt.Errorf("%v", r)
+				}
+
+				request.Logger.Fatal(
+					fmt.Sprintf("[PANIC RECOVERY] %v \n%s", err, debug.Stack()),
+				)
+
+				request.saveSessions()
+
+				result = ctx.NoContent(500)
+			}
+		}()
+
+		var response *Response
+
+		if len(authHandlers) > 0 {
+			request.monitorStart(MonitorStep.Auth, "")
+
+			for _, authHandler := range authHandlers {
+				auth := authHandler(request)
+				if !auth.IsSuccessful() {
+					return auth.GetResponse().send(request)
+				}
+			}
+
+			request.monitorEnd(MonitorStep.Auth, "")
+		}
+
+		request.monitorStart(MonitorStep.BindinParams, "")
+		perr := e.BindParams(request)
+		if perr != nil {
+			request.Logger.Error(perr.ToString())
+			return perr.Response().send(request)
+		}
+		request.monitorEnd(MonitorStep.BindinParams, "")
+
+		response, failed := requestMiddlewares(request, response)
+		if failed {
+			return response.send(request)
+		}
+
+		request.monitorStart(MonitorStep.Handler, "")
+		response = Respond.Ok()
+		headers := getHeaders(ctx, request, response.Status)
+		if headers != nil {
+			response.SetHeaders(headers)
+		}
+		request.monitorEnd(MonitorStep.Handler, "")
+
+		response = responseMiddlewares(request, response)
+		return response.send(request)
+	}
+
 	switch method {
 	case "GET":
 		echoServer.GET(fullpath, handler)
+		if getHeaders != nil {
+			echoServer.HEAD(fullpath, headHandler)
+		}
 		return
 	case "POST":
 		echoServer.POST(fullpath, handler)

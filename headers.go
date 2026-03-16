@@ -1,6 +1,8 @@
 package butler
 
-import "strings"
+import (
+	"strings"
+)
 
 type genericHeaderCollection interface {
 	Get(name string) string
@@ -9,13 +11,20 @@ type genericHeaderCollection interface {
 	Del(key string)
 }
 
-type header struct {
-	name   string
-	values []string
+type H struct {
+	Name   string
+	Values []string
 }
 
 type Headers struct {
-	httpHeaders []header
+	httpHeaders []H
+}
+
+func NewHeaders(initHeaders ...H) *Headers {
+	h := &Headers{
+		httpHeaders: initHeaders,
+	}
+	return h
 }
 
 func (h *Headers) Has(name string) bool {
@@ -23,7 +32,7 @@ func (h *Headers) Has(name string) bool {
 
 	for idx := range h.httpHeaders {
 		h := &h.httpHeaders[idx]
-		if h.name == name && len(h.values) > 0 {
+		if h.Name == name && len(h.Values) > 0 {
 			return true
 		}
 	}
@@ -36,71 +45,104 @@ func (h *Headers) Get(name string) string {
 
 	for idx := range h.httpHeaders {
 		h := &h.httpHeaders[idx]
-		if h.name == name {
-			return h.values[len(h.values)-1]
+		if h.Name == name {
+			return h.Values[len(h.Values)-1]
 		}
 	}
 
 	return ""
 }
 
-func (h *Headers) Set(name string, value string) {
+func (h *Headers) Set(name string, value string) *Headers {
 	name = strings.ToLower(name)
 
-	for idx := range h.httpHeaders {
-		h := &h.httpHeaders[idx]
-		if h.name == name {
-			h.values = []string{value}
-			return
-		}
-	}
-
-	h.httpHeaders = append(h.httpHeaders, header{name, []string{value}})
-}
-
-func (h *Headers) Add(name string, value string) {
-	name = strings.ToLower(name)
-
-	for idx := range h.httpHeaders {
-		h := &h.httpHeaders[idx]
-		if h.name == name {
-			h.values = append(h.values, value)
-			return
-		}
-	}
-
-	h.httpHeaders = append(h.httpHeaders, header{name, []string{value}})
-}
-
-func (h *Headers) Del(name string) {
-	name = strings.ToLower(name)
-
-	for idx := range h.httpHeaders {
-		if h.httpHeaders[idx].name == name {
-			h.httpHeaders[idx] = h.httpHeaders[len(h.httpHeaders)-1]
-			h.httpHeaders = h.httpHeaders[:len(h.httpHeaders)-1]
-			return
-		}
-	}
-}
-
-func (h *Headers) CopyInto(target genericHeaderCollection) {
 	for idx := range h.httpHeaders {
 		header := &h.httpHeaders[idx]
-
-		if len(header.values) == 0 {
-			continue
+		if header.Name == name {
+			header.Values = []string{value}
+			return h
 		}
+	}
 
-		target.Del(header.name)
+	h.httpHeaders = append(h.httpHeaders, H{name, []string{value}})
 
-		if len(header.values) == 1 {
-			target.Set(header.name, header.values[0])
-			continue
+	return h
+}
+
+func (h *Headers) Add(name string, value string) *Headers {
+	name = strings.ToLower(name)
+
+	for idx := range h.httpHeaders {
+		header := &h.httpHeaders[idx]
+		if header.Name == name {
+			header.Values = append(header.Values, value)
+			return h
 		}
+	}
 
-		for _, value := range header.values {
-			target.Add(header.name, value)
+	h.httpHeaders = append(h.httpHeaders, H{name, []string{value}})
+
+	return h
+}
+
+func (h *Headers) Del(name string) *Headers {
+	name = strings.ToLower(name)
+
+	for idx := range h.httpHeaders {
+		if h.httpHeaders[idx].Name == name {
+			h.httpHeaders[idx] = h.httpHeaders[len(h.httpHeaders)-1]
+			h.httpHeaders = h.httpHeaders[:len(h.httpHeaders)-1]
+			return h
 		}
+	}
+
+	return h
+}
+
+/*
+Copies all the headers set on this butler.Headers instance into the target.
+The target must be either another butler.Headers or a http.Header.
+*/
+func (h *Headers) CopyInto(target any) {
+	if headers, ok := target.(*Headers); ok {
+		for idx := range h.httpHeaders {
+			header := &h.httpHeaders[idx]
+
+			if len(header.Values) == 0 {
+				continue
+			}
+
+			headers.Del(header.Name)
+
+			if len(header.Values) == 1 {
+				headers.Set(header.Name, header.Values[0])
+				continue
+			}
+
+			for _, value := range header.Values {
+				headers.Add(header.Name, value)
+			}
+		}
+	} else if headers, ok := target.(genericHeaderCollection); ok {
+		for idx := range h.httpHeaders {
+			header := &h.httpHeaders[idx]
+
+			if len(header.Values) == 0 {
+				continue
+			}
+
+			headers.Del(header.Name)
+
+			if len(header.Values) == 1 {
+				headers.Set(header.Name, header.Values[0])
+				continue
+			}
+
+			for _, value := range header.Values {
+				headers.Add(header.Name, value)
+			}
+		}
+	} else {
+		panic("Headers.CopyInto target is not a valid header collection")
 	}
 }

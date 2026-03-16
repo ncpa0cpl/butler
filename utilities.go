@@ -48,15 +48,15 @@ func canEncode(contentType string) bool {
 	return false
 }
 
-func resolveAutoEncoding(request *Request, response *Response) string {
-	respContentType := response.Headers.Get("Content-Type")
+func resolveAutoEncoding(respContentType, acceptedEncodings string, data []byte) string {
+	// respContentType := response.Headers.Get("Content-Type")
 
 	if !canEncode(respContentType) {
 		return "none"
 	}
 
-	acceptedEncodings := request.Headers.Get("Accept-Encoding")
-	bodyLen := len(response.Body)
+	// acceptedEncodings := request.Headers.Get("Accept-Encoding")
+	bodyLen := len(data)
 
 	if strings.Contains(acceptedEncodings, "br") {
 		if bodyLen >= BROTLI_MIN_SIZE {
