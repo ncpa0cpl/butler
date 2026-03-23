@@ -55,7 +55,7 @@ func request(method string, url string, body any, headers ...header) ([]byte, *h
 
 	if resp.Body != nil {
 		respBody, err = io.ReadAll(resp.Body)
-		// noErr(err)
+		noErr(err)
 	}
 
 	return respBody, resp

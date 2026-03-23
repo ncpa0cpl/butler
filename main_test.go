@@ -26,7 +26,7 @@ import (
 type QParams struct {
 	Search     *f.StringQParam
 	Limit      *f.NumberQParam
-	IncludeDel *f.BoolQParam
+	IncludeDel *f.BoolQParam `name:"includedel"`
 }
 
 type Book struct {
@@ -40,7 +40,7 @@ type BookResource struct {
 }
 
 type BooksQueryParams struct {
-	ID     *f.StringUrlParam
+	ID     *f.StringUrlParam `name:"id"`
 	Filter *f.StringQParam
 }
 
@@ -168,7 +168,7 @@ func TestGetEndpointWithUrlParams(t *testing.T) {
 	server.Port = 8080
 
 	type UrlParams struct {
-		ID   *f.StringUrlParam
+		Id   *f.StringUrlParam
 		Page *f.NumberUrlParam
 	}
 
@@ -179,7 +179,7 @@ func TestGetEndpointWithUrlParams(t *testing.T) {
 			MaxAge: time.Hour,
 		},
 		Handler: func(request *f.Request, params UrlParams) *f.Response {
-			id := params.ID.Get()
+			id := params.Id.Get()
 			page := params.Page.Get()
 
 			return f.Respond.Ok().JSON([]Book{
@@ -936,7 +936,7 @@ func TestHeaders(t *testing.T) {
 	server.Port = 8080
 
 	type UrlParams struct {
-		ID *f.StringUrlParam
+		ID *f.StringUrlParam `name:"id"`
 	}
 
 	books := &f.BasicEndpoint[UrlParams]{
