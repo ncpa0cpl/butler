@@ -560,7 +560,7 @@ func CreateSearchParamsBinder[T any]() paramBinder[T] {
 		field := paramsT.Field(i)
 		if field.Type.Implements(paramInterface) {
 			fname := field.Name
-			paramName := decapitalize(fname)
+			paramName := fname
 			if tagValue := field.Tag.Get("name"); tagValue != "" {
 				paramName = tagValue
 			}

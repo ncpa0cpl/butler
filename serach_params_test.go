@@ -94,7 +94,7 @@ func TestTagNames(t *testing.T) {
 	defer server.Close()
 
 	body, resp := request("GET",
-		"http://localhost:8080/loopback?foo=hello&foo=world&bar=1&baz=lorem&unnamedStringList=1&unnamedStringList=2&unnamedNumber=0&unnamedString=UnnamedString",
+		"http://localhost:8080/loopback?foo=hello&foo=world&bar=1&baz=lorem&UnnamedStringList=1&UnnamedStringList=2&UnnamedNumber=0&UnnamedString=UnnamedString",
 		nil)
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal(
@@ -139,7 +139,7 @@ func TestArrayParams(t *testing.T) {
 	defer server.Close()
 
 	body, resp := request("GET",
-		"http://localhost:8080/loopback?strArray=first+str&strArray=second+str&intArray=1&intArray=-2&intArray=500&floatArray=0&floatArray=0.5&floatArray=1.02",
+		"http://localhost:8080/loopback?StrArray=first+str&StrArray=second+str&IntArray=1&IntArray=-2&IntArray=500&FloatArray=0&FloatArray=0.5&FloatArray=1.02",
 		nil)
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal("{\"Strings\":[\"first str\",\"second str\"],\"Ints\":[1,-2,500],\"Floats\":[0,0.5,1.02]}", string(body))
@@ -192,9 +192,9 @@ func TestArrayParamsWithParsingErrors(t *testing.T) {
 	assert := assert.New(t)
 
 	type QParams struct {
-		StrArray   *f.StringListQParam
-		IntArray   *f.NumberListQParam
-		FloatArray *f.FloatListQParam
+		StrArray   *f.StringListQParam `name:"strarr"`
+		IntArray   *f.NumberListQParam `name:"intarr"`
+		FloatArray *f.FloatListQParam  `name:"floatarr"`
 	}
 
 	server := f.CreateServer()
@@ -225,12 +225,12 @@ func TestArrayParamsWithParsingErrors(t *testing.T) {
 	defer server.Close()
 
 	_, resp := request("GET",
-		"http://localhost:8080/loopback?strArray=first+str&strArray=second+str&intArray=1&intArray=-2.05&intArray=500&floatArray=0&floatArray=0.5&floatArray=1.02",
+		"http://localhost:8080/loopback?strarr=first+str&strArray=second+str&intarr=1&intarr=-2.05&intarr=500&floatarr=0&floatarr=0.5&floatarr=1.02",
 		nil)
 	assert.Equal(400, resp.StatusCode)
 
 	_, resp = request("GET",
-		"http://localhost:8080/loopback?strArray=first+str&strArray=second+str&intArray=1&intArray=-2&intArray=500&floatArray=0&floatArray=0.5&floatArray=1,02",
+		"http://localhost:8080/loopback?strarr=first+str&strArray=second+str&intarr=1&intarr=-2&intarr=500&floatarr=0&floatarr=0.5&floatarr=1,02",
 		nil)
 	assert.Equal(400, resp.StatusCode)
 }

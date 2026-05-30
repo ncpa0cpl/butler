@@ -99,7 +99,7 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) {
 
 	getEndpoint := &BasicEndpoint[T]{
 		Method:            "GET",
-		Path:              ":id",
+		Path:              ":ID",
 		Auth:              g.Auth,
 		Encoding:          g.Encoding,
 		CachePolicy:       g.CachePolicy,
@@ -197,7 +197,7 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) {
 
 	putEndpoint := &Endpoint[T, B]{
 		Method:            "PUT",
-		Path:              ":id",
+		Path:              ":ID",
 		Auth:              g.Auth,
 		Encoding:          g.Encoding,
 		StreamingSettings: g.StreamingSettings,
@@ -228,7 +228,7 @@ func (g *RestEndpoints[T, B]) Register(server EndpointParent) {
 
 	deleteEndpoint := &BasicEndpoint[T]{
 		Method:            "DELETE",
-		Path:              ":id",
+		Path:              ":ID",
 		Auth:              g.Auth,
 		Encoding:          g.Encoding,
 		StreamingSettings: g.StreamingSettings,

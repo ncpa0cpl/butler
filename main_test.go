@@ -24,9 +24,9 @@ import (
 )
 
 type QParams struct {
-	Search     *f.StringQParam
-	Limit      *f.NumberQParam
-	IncludeDel *f.BoolQParam `name:"includedel"`
+	Search     *f.StringQParam `name:"search"`
+	Limit      *f.NumberQParam `name:"limit"`
+	IncludeDel *f.BoolQParam   `name:"includedel"`
 }
 
 type Book struct {
@@ -40,8 +40,8 @@ type BookResource struct {
 }
 
 type BooksQueryParams struct {
-	ID     *f.StringUrlParam `name:"id"`
-	Filter *f.StringQParam
+	ID     *f.StringUrlParam
+	Filter *f.StringQParam `name:"filter"`
 }
 
 func (b BookResource) Get(req *f.Request, params BooksQueryParams) (*BookResource, *f.Response) {
@@ -168,18 +168,18 @@ func TestGetEndpointWithUrlParams(t *testing.T) {
 	server.Port = 8080
 
 	type UrlParams struct {
-		Id   *f.StringUrlParam
+		ID   *f.StringUrlParam
 		Page *f.NumberUrlParam
 	}
 
 	books := &f.BasicEndpoint[UrlParams]{
 		Method: "GET",
-		Path:   "/books/:id/:page",
+		Path:   "/books/:ID/:Page",
 		CachePolicy: &f.HttpCachePolicy{
 			MaxAge: time.Hour,
 		},
 		Handler: func(request *f.Request, params UrlParams) *f.Response {
-			id := params.Id.Get()
+			id := params.ID.Get()
 			page := params.Page.Get()
 
 			return f.Respond.Ok().JSON([]Book{
