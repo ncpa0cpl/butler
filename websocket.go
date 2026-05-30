@@ -23,6 +23,7 @@ type Websocket struct {
 	sendChannel    chan sendMessage
 	readingStarted bool
 	logger         RequestLogger
+	request        *Request
 
 	msgReceivers   eventEmitter[WebsocketMessage]
 	closeReceivers eventEmitter[CloseMessage]
@@ -38,6 +39,7 @@ func newWebsocket(request *Request, conn *websocket.Conn, pingInterval, pongTime
 		sendChannel:    make(chan sendMessage, 16),
 		logger:         request.Logger,
 		readingStarted: false,
+		request:        request,
 		msgReceivers: eventEmitter[WebsocketMessage]{
 			mx:        sync.Mutex{},
 			listeners: make([]listener[WebsocketMessage], 0),
@@ -131,6 +133,10 @@ func (ws *Websocket) startReading() {
 
 func (ws *Websocket) GetConnection() *websocket.Conn {
 	return ws.conn
+}
+
+func (ws *Websocket) Request() *Request {
+	return ws.request
 }
 
 func (ws *Websocket) IsOpen() bool {
