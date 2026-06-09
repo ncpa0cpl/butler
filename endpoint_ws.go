@@ -214,7 +214,7 @@ func (e *WebSocketEndpoint) Register(parent EndpointParent) {
 		return response.send(request)
 	}
 
-	echoServer.GET(e.Path, handler)
+	echoServer.GET(e.GetPath(), handler)
 }
 
 //
