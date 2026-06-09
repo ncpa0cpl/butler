@@ -212,6 +212,10 @@ func (ws *Websocket) SendText(content string) {
 	ws.sendChannel <- sendMessage{[]byte(content), websocket.TextMessage}
 }
 
+func (ws *Websocket) Logger() RequestLogger {
+	return ws.logger
+}
+
 type WebsocketMessage struct {
 	IsText bool
 	Data   []byte

@@ -86,6 +86,7 @@ func (e *WebSocketEndpoint) BindParams(*Request) *ParamParsingError {
 func (e *WebSocketEndpoint) ExecuteHandler(ctx *echo.Context, request *Request) error {
 	ws, err := upgrader.Upgrade(ctx.Response(), ctx.Request(), nil)
 	if err != nil {
+		request.Logger.Error("failed to upgrade the connection", err)
 		return err
 	}
 
@@ -103,7 +104,13 @@ func (e *WebSocketEndpoint) ExecuteHandler(ctx *echo.Context, request *Request) 
 		e.WriteTimeout = 30 * time.Second
 	}
 
-	return e.OnOpen(newWebsocket(request, ws, e.PingInterval, e.PongTimeout, e.WriteTimeout))
+	request.Logger.Debug("connection upgraded, creating WebSocket")
+
+	websocket := newWebsocket(request, ws, e.PingInterval, e.PongTimeout, e.WriteTimeout)
+
+	request.Logger.Debug("WebSocket interface created")
+
+	return e.OnOpen(websocket)
 }
 
 func (e *WebSocketEndpoint) Register(parent EndpointParent) {
@@ -189,6 +196,8 @@ func (e *WebSocketEndpoint) Register(parent EndpointParent) {
 
 		if response == nil {
 			return e.ExecuteHandler(ctx, request)
+		} else {
+			request.Logger.Debug("WS endpoint created a response, response will be sent instead of upgrading the connection")
 		}
 
 		for _, md := range respMiddlewares {
@@ -205,10 +214,6 @@ func (e *WebSocketEndpoint) Register(parent EndpointParent) {
 				response = Respond.InternalError()
 				return response.send(request)
 			}
-		}
-
-		if response.customHandler != nil {
-			return response.send(request)
 		}
 
 		return response.send(request)
