@@ -2,6 +2,8 @@ package butler
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -57,13 +59,26 @@ func newWebsocket(request *Request, conn *websocket.Conn, pingInterval, pongTime
 		mutex.Unlock()
 	})
 
+	orgCloseHandler := ws.conn.CloseHandler()
+	ws.conn.SetCloseHandler(func(code int, text string) error {
+		ws.closeReceivers.EmitAndClose(CloseMessage{
+			CloseErr: fmt.Errorf("code=%v %s", code, text),
+		})
+		return orgCloseHandler(code, text)
+	})
+
 	// writer
 	go func() {
+		var err error
+
 		ticker := time.NewTicker(pingInterval)
 		defer func() {
 			close(ws.sendChannel)
 			ticker.Stop()
 			ws.conn.Close()
+			ws.closeReceivers.EmitAndClose(CloseMessage{
+				CloseErr: err,
+			})
 		}()
 
 		for {
@@ -72,14 +87,15 @@ func newWebsocket(request *Request, conn *websocket.Conn, pingInterval, pongTime
 				conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 				if !ok {
 					// The hub closed the channel.
-					err := conn.WriteMessage(websocket.CloseMessage, []byte{})
+					err = conn.WriteMessage(websocket.CloseMessage, []byte{})
 					if err != nil {
 						request.Logger.Error(err)
 					}
 					return
 				}
 
-				w, err := conn.NextWriter(msg.mtype)
+				var w io.WriteCloser
+				w, err = conn.NextWriter(msg.mtype)
 				if err != nil {
 					request.Logger.Error(err)
 					return
@@ -93,7 +109,7 @@ func newWebsocket(request *Request, conn *websocket.Conn, pingInterval, pongTime
 				}
 			case <-ticker.C:
 				conn.SetWriteDeadline(time.Now().Add(writeTimeout))
-				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				if err = conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					request.Logger.Error(err)
 					return
 				}
@@ -112,16 +128,13 @@ func (ws *Websocket) startReading() {
 	ws.readingStarted = true
 
 	go func() {
-		for ws.open {
+		for {
 			t, content, err := ws.conn.ReadMessage()
 			if err != nil {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 					ws.logger.Error(err)
 				}
-				ws.closeReceivers.EmitAndClose(CloseMessage{
-					err,
-				})
-				break
+				return
 			}
 			ws.msgReceivers.Emit(WebsocketMessage{
 				IsText: t == websocket.TextMessage,
@@ -202,6 +215,11 @@ func (ws *Websocket) ReadNext() *WebsocketMessage {
 	case <-closeChan:
 		return nil
 	}
+}
+
+// starts the read loop even if there's no message readers
+func (ws *Websocket) KeepReading() {
+	ws.startReading()
 }
 
 func (ws *Websocket) SendBinary(content []byte) {
