@@ -10,7 +10,7 @@ import (
 	echo "github.com/labstack/echo/v5"
 )
 
-var upgrader = websocket.Upgrader{}
+var DefaultUpgrader = websocket.Upgrader{}
 
 type WebSocketEndpoint struct {
 	Path       string
@@ -27,6 +27,10 @@ type WebSocketEndpoint struct {
 	// can return a response that will be sent instead of upgrading the connection. To allow upgrade
 	// return nil.
 	BeforeUpgrade func(request *Request) *Response
+	// provide a websocket Upgrader that will be used to upgrade the connection
+	//
+	// by default a `websocket.Upgrader{}` will be used
+	Upgrader func() websocket.Upgrader
 
 	Description string
 	Name        string
@@ -84,6 +88,13 @@ func (e *WebSocketEndpoint) BindParams(*Request) *ParamParsingError {
 }
 
 func (e *WebSocketEndpoint) ExecuteHandler(ctx *echo.Context, request *Request) error {
+	var upgrader websocket.Upgrader
+	if e.Upgrader != nil {
+		upgrader = e.Upgrader()
+	} else {
+		upgrader = DefaultUpgrader
+	}
+
 	ws, err := upgrader.Upgrade(ctx.Response(), ctx.Request(), nil)
 	if err != nil {
 		request.Logger.Error("failed to upgrade the connection", err)
