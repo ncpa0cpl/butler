@@ -144,7 +144,7 @@ func (e *WebSocketEndpoint) Register(parent EndpointParent) {
 				}
 
 				request.Logger.Fatal(
-					fmt.Sprintf("[PANIC RECOVERY] %v \n%s", err, debug.Stack()),
+					fmt.Sprintf("[PANIC RECOVERY] %v \nStack trace: %v", err, string(debug.Stack())),
 				)
 
 				resultErr = ctx.NoContent(500)

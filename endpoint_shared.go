@@ -226,7 +226,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 				}
 
 				request.Logger.Fatal(
-					fmt.Sprintf("[PANIC RECOVERY] %v \n%s", err, debug.Stack()),
+					fmt.Sprintf("[PANIC RECOVERY] %v \nStack trace: %v", err, string(debug.Stack())),
 				)
 
 				request.saveSessions()
@@ -255,7 +255,7 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 				}
 
 				request.Logger.Fatal(
-					fmt.Sprintf("[PANIC RECOVERY] %v \n%s", err, debug.Stack()),
+					fmt.Sprintf("[PANIC RECOVERY] %v \nStack trace: %v", err, string(debug.Stack())),
 				)
 
 				request.saveSessions()
