@@ -33,6 +33,10 @@ func (l RequestLogger) addFmtPrefix(msg string, args []any) (string, []any) {
 	return "%s %s - " + msg, args
 }
 
+func (l RequestLogger) GlobalLogger() ILogger {
+	return l.logger
+}
+
 func (l RequestLogger) Info(msg ...any) {
 	msg = l.addPrefix(msg)
 	if l.userHandler != nil {
