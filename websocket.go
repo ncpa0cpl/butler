@@ -22,6 +22,7 @@ type sendMessage struct {
 type Websocket struct {
 	conn           *websocket.Conn
 	open           bool
+	openMx         sync.RWMutex
 	sendChannel    chan sendMessage
 	readingStarted bool
 	logger         RequestLogger
@@ -38,6 +39,7 @@ func newWebsocket(request *Request, conn *websocket.Conn, pingInterval, pongTime
 	ws := Websocket{
 		conn:           conn,
 		open:           true,
+		openMx:         sync.RWMutex{},
 		sendChannel:    make(chan sendMessage, 16),
 		logger:         request.Logger,
 		readingStarted: false,
@@ -52,11 +54,10 @@ func newWebsocket(request *Request, conn *websocket.Conn, pingInterval, pongTime
 		},
 	}
 
-	var mutex sync.Mutex
 	ws.closeReceivers.Add(func(CloseMessage) {
-		mutex.Lock()
+		ws.openMx.Lock()
 		ws.open = false
-		mutex.Unlock()
+		ws.openMx.Unlock()
 	})
 
 	orgCloseHandler := ws.conn.CloseHandler()
@@ -144,6 +145,26 @@ func (ws *Websocket) startReading() {
 	}()
 }
 
+func (ws *Websocket) Start(onOpen func(ws *Websocket) error) {
+	err := onOpen(ws)
+	if err != nil {
+		ws.logger.Error("the WebSocket open handler returned an error:", err)
+		if ws.IsOpen() {
+			ws.Close(websocket.CloseInternalServerErr)
+		}
+	} else {
+		if ws.IsOpen() {
+			var wg sync.WaitGroup
+			wg.Add(1)
+			ws.closeReceivers.Add(func(CloseMessage) {
+				wg.Done()
+			})
+			ws.startReading()
+			wg.Wait()
+		}
+	}
+}
+
 func (ws *Websocket) GetConnection() *websocket.Conn {
 	return ws.conn
 }
@@ -153,10 +174,25 @@ func (ws *Websocket) Request() *Request {
 }
 
 func (ws *Websocket) IsOpen() bool {
+	ws.openMx.RLock()
+	defer ws.openMx.RUnlock()
 	return ws.open
 }
 
-func (ws *Websocket) Close() error {
+// optionally pass a one close code. default is `websocket.CloseNormalClosure`
+func (ws *Websocket) Close(closecode ...int) error {
+	code := websocket.CloseNormalClosure
+
+	if len(closecode) > 0 {
+		code = closecode[0]
+	}
+
+	ws.conn.WriteControl(
+		websocket.CloseMessage,
+		websocket.FormatCloseMessage(code, ""),
+		time.Now().Add(time.Second),
+	)
+
 	err := ws.conn.Close()
 	ws.closeReceivers.EmitAndClose(CloseMessage{
 		err,
@@ -215,11 +251,6 @@ func (ws *Websocket) ReadNext() *WebsocketMessage {
 	case <-closeChan:
 		return nil
 	}
-}
-
-// starts the read loop even if there's no message readers
-func (ws *Websocket) KeepReading() {
-	ws.startReading()
 }
 
 func (ws *Websocket) SendBinary(content []byte) {
