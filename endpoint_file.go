@@ -100,7 +100,10 @@ func (e *FsEndpoint) GetEncoding() string {
 }
 
 func (e *FsEndpoint) GetCachePolicy() *HttpCachePolicy {
-	return e.CachePolicy
+	if e.CachePolicy != nil {
+		return e.CachePolicy
+	}
+	return &HttpCachePolicy{NoStore: true}
 }
 
 func (e *FsEndpoint) GetStreamingSettings() *StreamingSettings {
@@ -137,7 +140,9 @@ func (e *FsEndpoint) Register(parent EndpointParent) {
 
 	if e.FileLoader == nil {
 		e.FileLoader = func() FileLoader {
-			return &DefaultFileLoader{}
+			return &DefaultFileLoader{
+				fs: e.parent.GetServer().filesystem,
+			}
 		}
 	}
 

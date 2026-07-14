@@ -2,25 +2,23 @@ package butler
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v5"
+	"github.com/labstack/gommon/log"
 )
 
 type responseLog struct {
-	ltype   string
-	message string
-	cause   error
+	loglevel log.Lvl
+	message  string
+	cause    error
 }
 
 type Response struct {
 	Status  int
 	Headers Headers
-	Body    []byte
 	// One of: `auto`, `none`, `gzip`, `brotli`, `deflate`
 	//
 	// Default: `auto`
@@ -34,6 +32,7 @@ type Response struct {
 	logs              []responseLog
 	streamReader      ButlerReader
 	streamWriter      func(HttpWriter) error
+	bodyResolver      ResponseBodyResolver
 }
 
 // marks this response to be encoded with a given encoding (one of: `auto`, `none`, `gzip`, `brotli`, `deflate`)
@@ -110,10 +109,9 @@ func (resp *Response) JSON(data any) *Response {
 
 	if err != nil {
 		resp.Status = 500
-		resp.logs = append(resp.logs, responseLog{"error", "encountered an error when serializing to JSON", err})
+		resp.logs = append(resp.logs, responseLog{LogLevel.Error, "encountered an error when serializing to JSON", err})
 	} else {
-		resp.Body = bytes
-		resp.Headers.Set("Content-Type", "application/json; charset=utf-8")
+		resp.bodyResolver = NewRespByteSliceResolver(bytes, "application/json; charset=utf-8")
 	}
 
 	return resp
@@ -121,187 +119,58 @@ func (resp *Response) JSON(data any) *Response {
 
 // assigns given argument to the response body, changes the response content-type
 func (resp *Response) Text(data string) *Response {
-	byte := []byte(data)
-	resp.Body = byte
-	resp.Headers.Set("Content-Type", "text/plain")
+	resp.bodyResolver = NewRespByteSliceResolver([]byte(data), "text/plain")
 	return resp
 }
 
 // assigns given argument to the response body, changes the response content-type
 func (resp *Response) Html(data string) *Response {
-	byte := []byte(data)
-	resp.Body = byte
-	resp.Headers.Set("Content-Type", "text/html")
+	resp.bodyResolver = NewRespByteSliceResolver([]byte(data), "text/html")
 	return resp
 }
 
 // assigns given argument to the response body, changes the response content-type
 func (resp *Response) Css(data string) *Response {
-	byte := []byte(data)
-	resp.Body = byte
-	resp.Headers.Set("Content-Type", "text/css")
+	resp.bodyResolver = NewRespByteSliceResolver([]byte(data), "text/css")
 	return resp
 }
 
 // assigns given argument to the response body, changes the response content-type
 func (resp *Response) Script(data string) *Response {
-	byte := []byte(data)
-	resp.Body = byte
-	resp.Headers.Set("Content-Type", "text/javascript")
+	resp.bodyResolver = NewRespByteSliceResolver([]byte(data), "text/javascript")
 	return resp
 }
 
 // assigns given argument to the response body, changes the response content-type
 func (resp *Response) XML(data string) *Response {
-	byte := []byte(data)
-	resp.Body = byte
-	resp.Headers.Set("Content-Type", "text/xml")
+	resp.bodyResolver = NewRespByteSliceResolver([]byte(data), "text/xml")
 	return resp
 }
 
 // send the given byte slice with a `application/octet-stream` content type
 func (resp *Response) OctetStream(data []byte) *Response {
-	resp.Body = data
-	resp.Headers.Set("Content-Type", "application/octet-stream")
+	resp.bodyResolver = NewRespByteSliceResolver(data, "application/octet-stream")
 	return resp
 }
 
 // send the given byte slice, automatically detect the data `Content-Type`
-func (resp *Response) Blob(data []byte) *Response {
-	resp.Body = data
+func (resp *Response) Auto(data []byte) *Response {
 	contentType := http.DetectContentType(data)
-	resp.Headers.Set("Content-Type", contentType)
+	resp.bodyResolver = NewRespByteSliceResolver(data, contentType)
 	return resp
 }
 
 // send the given byte slice with the specified `contentType`, if `contentType` argument
 // is not specified in the arguments it will not be set
 func (resp *Response) Bytes(data []byte, contentType ...string) *Response {
-	resp.Body = data
-	if len(contentType) > 0 {
-		resp.Headers.Set("Content-Type", contentType[len(contentType)-1])
-	}
+	resp.bodyResolver = NewRespByteSliceResolver(data, firstOrZero(contentType))
 	return resp
 }
 
 // send the given file with the specified `contentType`, if `contentType` argument
 // is not specified it will be detected automatically
 func (resp *Response) File(filepath string, contentType ...string) *Response {
-	data, err := os.ReadFile(filepath)
-
-	if err != nil {
-		resp.Status = 500
-		resp.logs = append(resp.logs, responseLog{"error", "unable to read the given file", err})
-	} else {
-		resp.Body = data
-
-		if len(contentType) > 0 {
-			resp.Headers.Set("Content-Type", contentType[len(contentType)-1])
-		} else {
-			resp.Headers.Set("Content-Type", http.DetectContentType(data))
-		}
-	}
-
-	return resp
-}
-
-// send the given file with the specified `contentType`, if `contentType` argument
-// is not specified it will be detected automatically
-//
-// Call to this function will close the given `filehandle`
-func (resp *Response) FileHandle(filehandle *os.File, contentType ...string) *Response {
-	defer filehandle.Close()
-	filehandle.Seek(0, 0)
-	data, err := io.ReadAll(filehandle)
-
-	if err != nil {
-		resp.Status = 500
-		resp.logs = append(resp.logs, responseLog{"error", "unable to read the given file", err})
-	} else {
-		resp.Body = data
-
-		if len(contentType) > 0 {
-			resp.Headers.Set("Content-Type", contentType[len(contentType)-1])
-		} else {
-			resp.Headers.Set("Content-Type", http.DetectContentType(data))
-		}
-	}
-
-	return resp
-}
-
-// send the contents of the given FileLoader with the specified `contentType`, if `contentType` argument
-// is not specified it will be set to whatever the loader reports
-//
-// Call to this function will close the given FileLoader
-func (resp *Response) FileLoader(fileLoader FileLoader, contentTypeOverride ...string) *Response {
-	defer fileLoader.Close()
-	data, err := fileLoader.ReadAll()
-
-	if err != nil {
-		resp.Status = 500
-		resp.logs = append(resp.logs, responseLog{"error", "unable to read the given file", err})
-	} else {
-		resp.Body = data
-
-		if len(contentTypeOverride) > 0 {
-			resp.Headers.Set("Content-Type", contentTypeOverride[len(contentTypeOverride)-1])
-		} else {
-			resp.Headers.Set("Content-Type", fileLoader.ContentType())
-		}
-
-		if fileLoader.AllowEncoding() == false {
-			resp.Encoding = "none"
-		}
-	}
-
-	return resp
-}
-
-// send the contents of the given FileLoader with the specified `contentType`, if `contentType` argument
-// is not specified it will be set to whatever the loader reports
-//
-// Call to this function will close the given FileLoader
-func (resp *Response) StreamFileLoader(fileLoader FileLoader, contentTypeOverride ...string) *Response {
-	reader, err := fileLoader.Reader()
-	if err != nil {
-		resp.Status = 500
-		resp.logs = append(resp.logs, responseLog{"error", "unable to read the given file", err})
-	}
-
-	resp.Body = nil
-	resp.streamReader = reader
-
-	if len(contentTypeOverride) > 0 {
-		resp.Headers.Set("Content-Type", contentTypeOverride[len(contentTypeOverride)-1])
-	} else {
-		resp.Headers.Set("Content-Type", fileLoader.ContentType())
-	}
-
-	return resp
-}
-
-// sends the data in the given reader in chunks, respects the requests Range header
-//
-// note: when streaming auto etag generation will be disabled
-func (resp *Response) Stream(reader ButlerReader, contentType string) *Response {
-	resp.Body = nil
-
-	resp.streamReader = reader
-	resp.Headers.Set("Content-Type", contentType)
-
-	return resp
-}
-
-// sends the given byte array in chunks, respects the requests Range header
-//
-// note: when streaming auto etag generation will be disabled
-func (resp *Response) StreamBytes(data []byte, contentType string) *Response {
-	resp.Body = nil
-
-	resp.streamReader = NewBytesReader(data)
-	resp.Headers.Set("Content-Type", contentType)
-
+	resp.bodyResolver = NewRespFileResolver(filepath, firstOrZero(contentType), false)
 	return resp
 }
 
@@ -309,16 +178,17 @@ func (resp *Response) StreamBytes(data []byte, contentType string) *Response {
 //
 // note: when streaming auto etag generation will be disabled
 func (resp *Response) StreamFile(filepath string, contentType string) *Response {
-	resp.Body = nil
+	resp.bodyResolver = NewRespFileResolver(filepath, contentType, true)
+	return resp
+}
 
-	file, err := os.Open(filepath)
-	if err != nil {
-		resp.Status = 500
-		resp.logs = append(resp.logs, responseLog{"error", "failed to open file " + filepath, err})
-		return resp
-	}
-
-	return resp.StreamFileHandle(file, contentType)
+// send the given file with the specified `contentType`, if `contentType` argument
+// is not specified it will be detected automatically
+//
+// Call to this function will close the given `filehandle`
+func (resp *Response) FileHandle(filehandle File, contentType ...string) *Response {
+	resp.bodyResolver = NewRespFileHandlerResolver(filehandle, firstOrZero(contentType), false)
+	return resp
 }
 
 // sends the data in the given file in chunks, respects the requests Range header
@@ -326,19 +196,28 @@ func (resp *Response) StreamFile(filepath string, contentType string) *Response 
 // Call to this function will close the given `filehandle`
 //
 // note: when streaming auto etag generation will be disabled
-func (resp *Response) StreamFileHandle(filehandle *os.File, contentType string) *Response {
-	resp.Body = nil
+func (resp *Response) StreamFileHandle(filehandle File, contentType string) *Response {
+	resp.bodyResolver = NewRespFileHandlerResolver(filehandle, contentType, true)
+	return resp
+}
 
-	var err error
-	resp.streamReader, err = NewFileReader(filehandle)
-	if err != nil {
-		resp.Status = 500
-		resp.logs = append(resp.logs, responseLog{"error", "failed to create file reader " + filehandle.Name(), err})
-		return resp
-	}
-
+// sends the data in the given reader in chunks, respects the requests Range header
+//
+// note: when streaming auto etag generation will be disabled
+func (resp *Response) Stream(reader ButlerReader, contentType string) *Response {
+	resp.bodyResolver = nil
+	resp.streamReader = reader
 	resp.Headers.Set("Content-Type", contentType)
+	return resp
+}
 
+// sends the given byte array in chunks, respects the requests Range header
+//
+// note: when streaming auto etag generation will be disabled
+func (resp *Response) StreamBytes(data []byte, contentType string) *Response {
+	resp.bodyResolver = nil
+	resp.streamReader = NewBytesReader(data)
+	resp.Headers.Set("Content-Type", contentType)
 	return resp
 }
 
@@ -374,22 +253,54 @@ If a write is called after the client closes the connection, write will return f
 	})
 */
 func (resp *Response) StreamWriter(handler func(HttpWriter) error) *Response {
-	resp.Body = nil
+	resp.bodyResolver = nil
 	resp.streamWriter = handler
 	return resp
 }
 
+// send the contents of the given FileLoader with the specified `contentType`, if `contentType` argument
+// is not specified it will be set to whatever the loader reports
+//
+// Call to this function will close the given FileLoader
+func (resp *Response) FileLoader(fileLoader FileLoader) *Response {
+	resp.bodyResolver = NewRespFileLoaderResolver(fileLoader, false)
+	return resp
+}
+
+// send the contents of the given FileLoader with the specified `contentType`, if `contentType` argument
+// is not specified it will be set to whatever the loader reports
+//
+// Call to this function will close the given FileLoader
+func (resp *Response) StreamFileLoader(fileLoader FileLoader) *Response {
+	resp.bodyResolver = NewRespFileLoaderResolver(fileLoader, true)
+	return resp
+}
+
+var noContentResolver = NewRespEmptyResolver()
+
 func (resp *Response) send(request *Request) error {
 	ctx := request.EchoContext()
+	respHeaders := ctx.Response().Header()
+
+	defer resp.processResponseLogs(request.Logger)
 
 	if resp.customHandler != nil {
-		request.saveSessions()
-
 		request.monitorStart(MonitorStep.Custom, "")
 		err := resp.customHandler(ctx)
 		request.monitorEnd(MonitorStep.Custom, "")
+		request.saveSessions()
 		return err
 	}
+
+	if resp.bodyResolver == nil {
+		resp.bodyResolver = noContentResolver
+	}
+
+	if resp.CachePolicy == nil {
+		resp.CachePolicy = &HttpCachePolicy{NoStore: true}
+	}
+
+	resp.bodyResolver.Init(request, resp)
 
 	if resp.AllowStreaming {
 		resp.Headers.Set("Accept-Ranges", "bytes")
@@ -400,42 +311,70 @@ func (resp *Response) send(request *Request) error {
 		ctx.SetCookie(cookie)
 	}
 
+	etag := resp.bodyResolver.ETag()
+	if etag != "" && request.Method == "GET" && resp.Status >= 200 && resp.Status < 300 {
+		cp := resp.CachePolicy
+
+		respHeaders.Set("ETag", etag)
+		respHeaders.Set("Cache-Control", cp.CacheControlHeader())
+
+		if cp.Vary != nil && len(cp.Vary) > 0 {
+			respHeaders.Set("Vary", cp.VaryHeader())
+		}
+
+		if !cp.DisableAutoResponseSkipping {
+			ifNoneMatch := request.Headers.Get("If-None-Match")
+			if etag == ifNoneMatch {
+				resp.Headers.CopyInto(respHeaders)
+				return ctx.NoContent(304)
+			}
+		}
+	}
+
+	resp.bodyResolver.SetupStreaming(resp)
+
+	if resp.streamWriter != nil {
+		request.saveSessions()
+		resp.Headers.CopyInto(respHeaders)
+		return resp.streamFromWriter(ctx, resp.streamWriter)
+	}
+
+	if resp.streamReader != nil {
+		request.saveSessions()
+		resp.Headers.CopyInto(respHeaders)
+		return resp.streamFromReader(ctx, request)
+	}
+
+	body := resp.bodyResolver.Resolve(resp)
+
+	request.saveSessions()
+
 	request.monitorStart(MonitorStep.Encoding, "")
-	encodeErr := resp.encodeBody(request)
+	body, encodeErr := resp.encodeBody(request, body)
 	request.monitorEnd(MonitorStep.Encoding, "")
 
 	if encodeErr != nil {
 		request.Logger.Error(encodeErr)
 	}
 
-	respHeaders := ctx.Response().Header()
 	resp.Headers.CopyInto(respHeaders)
-	request.saveSessions()
 
-	if resp.streamWriter != nil {
-		return resp.streamFromWriter(ctx, resp.streamWriter)
-	}
-
-	if resp.streamReader != nil {
-		return resp.streamFromReader(ctx, request)
-	}
-
-	if resp.Body != nil && len(resp.Body) > 0 {
-		if resp.shouldAutoStream(request) {
+	if body != nil && len(body) > 0 {
+		if resp.shouldAutoStream(request, body) {
 			respHeaders.Del("Content-Length")
-			return resp.stream(ctx, request)
+			return resp.stream(ctx, request, body)
 		} else {
-			respHeaders.Set("Content-Length", strconv.Itoa(len(resp.Body)))
-			return ctx.Blob(resp.Status, resp.Headers.Get("Content-Type"), resp.Body)
+			respHeaders.Set("Content-Length", strconv.Itoa(len(body)))
+			return ctx.Blob(resp.Status, resp.Headers.Get("Content-Type"), body)
 		}
 	}
 
 	return ctx.NoContent(resp.Status)
 }
 
-func (resp *Response) encodeBody(request *Request) error {
-	if len(resp.Body) == 0 {
-		return nil
+func (resp *Response) encodeBody(request *Request, body []byte) ([]byte, error) {
+	if len(body) == 0 {
+		return body, nil
 	}
 
 	enc := resp.Encoding
@@ -444,30 +383,79 @@ func (resp *Response) encodeBody(request *Request) error {
 		enc = resolveAutoEncoding(
 			resp.Headers.Get("Content-Type"),
 			request.Headers.Get("Accept-Encoding"),
-			resp.Body,
+			body,
 		)
 	}
 
 	if enc == "none" {
-		return nil
+		return body, nil
 	}
 
 	switch enc {
 	case "brotli":
-		return EncodeRequestBrotli(request, resp)
+		return EncodeRequestBrotli(request, resp, body)
 	case "deflate":
-		return EncodeRequestDeflate(request, resp)
+		return EncodeRequestDeflate(request, resp, body)
 	case "gzip":
-		return EncodeRequestGzip(request, resp)
+		return EncodeRequestGzip(request, resp, body)
 	}
 
-	return nil
+	return body, nil
 }
 
-func (resp *Response) shouldAutoStream(request *Request) bool {
+func (resp *Response) shouldAutoStream(request *Request, body []byte) bool {
 	return resp.AllowStreaming &&
 		resp.Status < 300 &&
-		(request.Headers.Get("Range") != "" || len(resp.Body) >= int(10*Units.MB))
+		(request.Headers.Get("Range") != "" || len(body) >= int(10*Units.MB))
+}
+
+func (resp *Response) processResponseLogs(logger RequestLogger) {
+	for _, l := range resp.logs {
+		switch l.loglevel {
+		case LogLevel.Error:
+			if l.cause != nil {
+				logger.Error(l.message, " ", l.cause)
+			} else {
+				logger.Error(l.message)
+			}
+		case LogLevel.Debug:
+			if l.cause != nil {
+				logger.Debug(l.message, " ", l.cause)
+			} else {
+				logger.Debug(l.message)
+			}
+		case LogLevel.Fatal:
+			if l.cause != nil {
+				logger.Fatal(l.message, " ", l.cause)
+			} else {
+				logger.Fatal(l.message)
+			}
+		case LogLevel.Info:
+			if l.cause != nil {
+				logger.Info(l.message, " ", l.cause)
+			} else {
+				logger.Info(l.message)
+			}
+		case LogLevel.Panic:
+			if l.cause != nil {
+				logger.Panic(l.message, " ", l.cause)
+			} else {
+				logger.Panic(l.message)
+			}
+		case LogLevel.Print:
+			if l.cause != nil {
+				logger.Print(l.message, " ", l.cause)
+			} else {
+				logger.Print(l.message)
+			}
+		case LogLevel.Warn:
+			if l.cause != nil {
+				logger.Warn(l.message, " ", l.cause)
+			} else {
+				logger.Warn(l.message)
+			}
+		}
+	}
 }
 
 type resp struct{}

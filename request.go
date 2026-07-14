@@ -22,6 +22,7 @@ type Request struct {
 	ctx              *echo.Context
 	accessedSessions []*sessions.Session
 	parent           EndpointParent
+	server           *Server
 }
 
 func NewRequest(
@@ -41,6 +42,7 @@ func NewRequest(
 		Data:          map[string]any{},
 		Headers:       ctx.Request().Header,
 		parent:        parent,
+		server:        parent.GetServer(),
 	}
 
 	req.Logger = newRequestLogger(req, parent.GetServer().Logger())

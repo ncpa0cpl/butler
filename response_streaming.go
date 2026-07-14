@@ -34,12 +34,12 @@ func (s *StreamingSettings) genKeepAliveHeader() string {
 	return fmt.Sprintf("timeout=%d, max=%d", s.KeepAliveTimeout, s.KeepAliveMax)
 }
 
-func (resp *Response) stream(ctx *echo.Context, request *Request) error {
-	if len(resp.Body) == 0 {
+func (resp *Response) stream(ctx *echo.Context, request *Request, body []byte) error {
+	if len(body) == 0 {
 		panic("cannot stream an empty body")
 	}
 
-	reader := NewBytesReader(resp.Body)
+	reader := NewBytesReader(body)
 	return streamReader(ctx, request, resp, reader)
 }
 

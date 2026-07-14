@@ -115,7 +115,8 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 		perr := e.BindParams(request)
 		if perr != nil {
 			request.Logger.Error(perr.ToString())
-			return perr.Response()
+			response = perr.Response()
+			return response
 		}
 		request.monitorEnd(MonitorStep.BindinParams, "")
 
@@ -133,20 +134,17 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 				if etag == ifNoneMatch {
 					response = Respond.NotModified()
-
-					if cachePolicy.Vary != nil && len(cachePolicy.Vary) > 0 {
-						response.Headers.Set("Vary", cachePolicy.VaryHeader())
-					}
-
-					response.Headers.Set("Cache-Control", cachePolicy.CacheControlHeader())
-					response.Headers.Set("ETag", etag)
-
+					response.etag = etag
+					response.CachePolicy = cachePolicy
 					return response
 				}
 			}
 
 			request.monitorStart(MonitorStep.Handler, "")
 			response = e.ExecuteHandler(ctx, request)
+			if response != nil && etag != "" {
+				response.etag = etag
+			}
 			if response != nil && getHeaders != nil {
 				headers := getHeaders(ctx, request, response.Status)
 				if headers != nil {
@@ -168,40 +166,6 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 		if response.StreamingSettings == nil {
 			response.StreamingSettings = streamSettings
-		}
-
-		cp := resolveCachePolicy(cachePolicy, response)
-		if cp != nil {
-			if cp.Vary != nil && len(cp.Vary) > 0 {
-				response.Headers.Set("Vary", cp.VaryHeader())
-			}
-
-			if response.Status >= 200 && response.Status < 300 && request.Method == "GET" {
-				response.Headers.Set("Cache-Control", cp.CacheControlHeader())
-
-				if etag != "" {
-					response.Headers.Set("ETag", etag)
-				} else if !cp.DisableETagGeneration {
-					request.monitorStart(MonitorStep.EtagHandler, "")
-					GenerateAndAddETag(response)
-					request.monitorEnd(MonitorStep.EtagHandler, "")
-				}
-
-				if !cp.DisableAutoResponseSkipping {
-					etag := response.Headers.Get("ETag")
-					if etag != "" {
-						ifNoneMatch := request.Headers.Get("If-None-Match")
-						if etag == ifNoneMatch {
-							response.Status = 304
-							response.Body = nil
-							response.streamReader = nil
-							response.streamWriter = nil
-							response.customHandler = nil
-							return response
-						}
-					}
-				}
-			}
 		}
 
 		if response.Encoding == "" {
@@ -237,7 +201,55 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 		resp := createResponse(ctx, request)
 		resp = responseMiddlewares(request, resp)
+
+		if resp.CachePolicy == nil {
+			resp.CachePolicy = cachePolicy
+		}
+
 		return resp.send(request)
+	}
+
+	createHeadResponse := func(ctx *echo.Context, request *Request) *Response {
+		var response *Response
+
+		if len(authHandlers) > 0 {
+			request.monitorStart(MonitorStep.Auth, "")
+
+			for _, authHandler := range authHandlers {
+				auth := authHandler(request)
+				if !auth.IsSuccessful() {
+					return auth.GetResponse()
+				}
+			}
+
+			request.monitorEnd(MonitorStep.Auth, "")
+		}
+
+		request.monitorStart(MonitorStep.BindinParams, "")
+		perr := e.BindParams(request)
+		if perr != nil {
+			request.Logger.Error(perr.ToString())
+			return perr.Response()
+		}
+		request.monitorEnd(MonitorStep.BindinParams, "")
+
+		response, failed := requestMiddlewares(request, response)
+		if failed {
+			return response
+		}
+
+		request.monitorStart(MonitorStep.Handler, "")
+		response = Respond.Ok()
+		var headers *Headers
+		if getHeaders != nil {
+			headers = getHeaders(ctx, request, response.Status)
+		}
+		if headers != nil {
+			response.SetHeaders(headers)
+		}
+		request.monitorEnd(MonitorStep.Handler, "")
+		response = responseMiddlewares(request, response)
+		return response
 	}
 
 	headHandler := func(ctx *echo.Context) (result error) {
@@ -264,47 +276,13 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 			}
 		}()
 
-		var response *Response
+		resp := createHeadResponse(ctx, request)
 
-		if len(authHandlers) > 0 {
-			request.monitorStart(MonitorStep.Auth, "")
-
-			for _, authHandler := range authHandlers {
-				auth := authHandler(request)
-				if !auth.IsSuccessful() {
-					return auth.GetResponse().send(request)
-				}
-			}
-
-			request.monitorEnd(MonitorStep.Auth, "")
+		if resp.CachePolicy == nil {
+			resp.CachePolicy = cachePolicy
 		}
 
-		request.monitorStart(MonitorStep.BindinParams, "")
-		perr := e.BindParams(request)
-		if perr != nil {
-			request.Logger.Error(perr.ToString())
-			return perr.Response().send(request)
-		}
-		request.monitorEnd(MonitorStep.BindinParams, "")
-
-		response, failed := requestMiddlewares(request, response)
-		if failed {
-			return response.send(request)
-		}
-
-		request.monitorStart(MonitorStep.Handler, "")
-		response = Respond.Ok()
-		var headers *Headers
-		if getHeaders != nil {
-			headers = getHeaders(ctx, request, response.Status)
-		}
-		if headers != nil {
-			response.SetHeaders(headers)
-		}
-		request.monitorEnd(MonitorStep.Handler, "")
-
-		response = responseMiddlewares(request, response)
-		return response.send(request)
+		return resp.send(request)
 	}
 
 	switch method {
@@ -336,15 +314,4 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 	}
 
 	panic("invalid method: " + e.GetMethod())
-}
-
-func resolveCachePolicy(endpointPolicy *HttpCachePolicy, response *Response) *HttpCachePolicy {
-	if response.Headers.Get("Cache-Control") == "" {
-		if response.CachePolicy != nil {
-			return response.CachePolicy
-		} else if endpointPolicy != nil {
-			return endpointPolicy
-		}
-	}
-	return nil
 }

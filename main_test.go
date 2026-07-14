@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -1863,6 +1864,361 @@ func TestProxyResponse(t *testing.T) {
 	assert.Equal(expectedResponse, responseContent)
 }
 
+type VirtualFileHandle struct {
+	f      *VirtualFile
+	offset int64
+}
+
+func (fh *VirtualFileHandle) Close() error {
+	return nil
+}
+func (fh *VirtualFileHandle) Name() string {
+	return fh.f.Name()
+}
+func (fh *VirtualFileHandle) Read(b []byte) (n int, err error) {
+	if fh.offset >= int64(len(fh.f.content)) {
+		return 0, io.EOF
+	}
+
+	n = copy(b, fh.f.content[fh.offset:])
+	fh.offset += int64(n)
+
+	if n < len(b) {
+		err = io.EOF
+	}
+
+	return
+}
+func (fh *VirtualFileHandle) ReadAt(b []byte, off int64) (n int, err error) {
+	if off < 0 {
+		return 0, errors.New("negative offset")
+	}
+
+	if off >= int64(len(fh.f.content)) {
+		return 0, io.EOF
+	}
+
+	n = copy(b, fh.f.content[off:])
+
+	if n < len(b) {
+		err = io.EOF
+	}
+
+	return
+}
+func (fh *VirtualFileHandle) Seek(offset int64, whence int) (ret int64, err error) {
+	var newOffset int64
+
+	switch whence {
+	case io.SeekStart:
+		newOffset = offset
+
+	case io.SeekCurrent:
+		newOffset = fh.offset + offset
+
+	case io.SeekEnd:
+		newOffset = int64(len(fh.f.content)) + offset
+
+	default:
+		return 0, errors.New("invalid whence")
+	}
+
+	if newOffset < 0 {
+		return 0, errors.New("negative position")
+	}
+
+	fh.offset = newOffset
+	return fh.offset, nil
+}
+
+type VirtualFile struct {
+	path    string
+	content []byte
+	modtime time.Time
+}
+
+func (v *VirtualFile) getHandle() f.File {
+	return &VirtualFileHandle{f: v}
+}
+
+func (v VirtualFile) Name() string {
+	return filepath.Base(v.path)
+}
+func (v VirtualFile) Size() int64 {
+	return int64(len(v.content))
+}
+func (v VirtualFile) Mode() os.FileMode {
+	return 0
+}
+func (v VirtualFile) ModTime() time.Time {
+	return v.modtime
+}
+func (v VirtualFile) IsDir() bool {
+	return false
+}
+func (v VirtualFile) Sys() any {
+	return nil
+}
+
+type VirtualFs struct {
+	files     []VirtualFile
+	accessLog []struct {
+		fn   string
+		file string
+	}
+}
+
+func (fs *VirtualFs) find(fpath string) (*VirtualFile, error) {
+	for _, f := range fs.files {
+		if f.path == fpath {
+			return &f, nil
+		}
+	}
+	return nil, errors.New("file does not exist")
+}
+func (fs *VirtualFs) findByHandle(handle f.File) (*VirtualFile, error) {
+	vf := handle.(*VirtualFileHandle)
+	return vf.f, nil
+}
+func (fs *VirtualFs) log(fn string, file string) {
+	fs.accessLog = append(fs.accessLog, struct {
+		fn   string
+		file string
+	}{
+		fn, file,
+	})
+}
+func (fs *VirtualFs) Stat(fp string) (f.FileStat, error) {
+	fs.log("stat", fp)
+	return fs.find(fp)
+}
+func (fs *VirtualFs) StatFromHandle(file f.File) (f.FileStat, error) {
+	fs.log("statFromHandle", "[FileHandle]")
+	vf, err := fs.findByHandle(file)
+	if err != nil {
+		return nil, err
+	}
+	return vf, nil
+}
+func (fs *VirtualFs) Handle(fp string) (f.File, error) {
+	fs.log("handle", fp)
+	file, err := fs.find(fp)
+	return file.getHandle(), err
+}
+func (fs *VirtualFs) Reader(filepath string) (f.ButlerReader, error) {
+	fs.log("reader", filepath)
+	file, err := fs.find(filepath)
+	if err != nil {
+		return nil, err
+	}
+	return f.NewBytesReader(file.content), nil
+}
+func (fs *VirtualFs) ReaderFromHandle(file f.File) (f.ButlerReader, error) {
+	fs.log("readerFromHandle", "[FileHandle]")
+	vf, err := fs.findByHandle(file)
+	if err != nil {
+		return nil, err
+	}
+	return f.NewBytesReader(vf.content), nil
+}
+func (fs *VirtualFs) Read(filepath string) ([]byte, error) {
+	fs.log("read", filepath)
+	file, err := fs.find(filepath)
+	if err != nil {
+		return nil, err
+	}
+	return file.content, nil
+}
+func (fs *VirtualFs) ReadFromHandle(file f.File) ([]byte, error) {
+	fs.log("readFromHandle", "[FileHandle]")
+	vf, err := fs.findByHandle(file)
+	if err != nil {
+		return nil, err
+	}
+	return vf.content, nil
+}
+func (fs *VirtualFs) ETag(filepath string) (string, error) {
+	fs.log("etag", filepath)
+	file, err := fs.find(filepath)
+	if err != nil {
+		return "", err
+	}
+	return file.modtime.Format(time.DateOnly), nil
+}
+func (fs *VirtualFs) ETagFromHandle(file f.File) (string, error) {
+	fs.log("etagFromHandle", "[FileHandle]")
+	vf, err := fs.findByHandle(file)
+	if err != nil {
+		return "", err
+	}
+	return vf.modtime.Format(time.DateOnly), nil
+}
+
+func TestFsLayerEtags(t *testing.T) {
+	assert := assert.New(t)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	fs := &VirtualFs{
+		files: []VirtualFile{
+			VirtualFile{
+				path:    "test.txt",
+				content: []byte("Lorem ipsum"),
+				modtime: must(time.Parse(time.DateOnly, "2026-07-02")),
+			},
+		},
+	}
+
+	server.SetFs(fs)
+
+	books := &f.BasicEndpoint[f.NoParams]{
+		Method: "GET",
+		Path:   "/books",
+		CachePolicy: &f.HttpCachePolicy{
+			MaxAge: time.Hour,
+		},
+		Handler: func(request *f.Request, params f.NoParams) *f.Response {
+			return f.Respond.Ok().File("test.txt", "plain/txt")
+		},
+	}
+
+	server.Add(books)
+
+	go server.Listen()
+	defer server.Close()
+
+	body, resp := request("GET", "http://localhost:8080/books", nil)
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal([]byte("Lorem ipsum"), body)
+
+	etag := resp.Header.Get("ETag")
+	assert.Equal("2026-07-02", etag)
+
+	assert.Equal([]struct {
+		fn   string
+		file string
+	}{
+		{"etag", "test.txt"},
+		{"read", "test.txt"},
+	}, fs.accessLog)
+
+	body, resp = request("GET", "http://localhost:8080/books", nil, header{"If-None-Match", etag})
+	assert.Equal(304, resp.StatusCode)
+	assert.Equal(0, len(body))
+
+	// second request avoids the read
+	assert.Equal([]struct {
+		fn   string
+		file string
+	}{
+		{"etag", "test.txt"},
+		{"read", "test.txt"},
+		{"etag", "test.txt"},
+	}, fs.accessLog)
+}
+
+func TestFsEndpointWithVirtFs(t *testing.T) {
+	assert := assert.New(t)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	server.SetFs(
+		&VirtualFs{
+			files: []VirtualFile{
+				{
+					path:    "/static_test/script.js",
+					content: []byte(JS_SAMPLE),
+					modtime: must(time.Parse(time.DateOnly, "2026-01-01")),
+				},
+				{
+					path:    "/static_test/styles.css",
+					content: []byte(CSS_SAMPLE),
+					modtime: must(time.Parse(time.DateOnly, "2026-01-02")),
+				},
+				{
+					path:    "/static_test/index.html",
+					content: []byte(HTML_SAMPLE),
+					modtime: must(time.Parse(time.DateOnly, "2026-01-03")),
+				},
+				{
+					path:    "/static_test/data.json",
+					content: []byte(JSON_SAMPLE),
+					modtime: must(time.Parse(time.DateOnly, "2026-02-01")),
+				},
+				{
+					path:    "/static_test/small_vid.mp4",
+					content: addVidPrefix(fill(make([]byte, f.Units.MB/4), 1)),
+					modtime: must(time.Parse(time.DateOnly, "2026-03-01")),
+				},
+				{
+					path:    "/static_test/big_vid.mp4",
+					content: addVidPrefix(fill(make([]byte, 5*f.Units.MB), 1)),
+					modtime: must(time.Parse(time.DateOnly, "2025-01-01")),
+				},
+			},
+		},
+	)
+
+	stream := &f.FsEndpoint{
+		Path: "/static",
+		Dir:  "/static_test",
+	}
+
+	server.Add(stream)
+
+	go server.Listen()
+	defer server.Close()
+
+	body, resp := request("GET", "http://localhost:8080/static/script.js", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("2026-01-01", resp.Header.Get("ETag"))
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal("text/javascript", resp.Header.Get("content-type"))
+	assert.Equal("", resp.Header.Get("content-range"))
+	assert.Equal([]byte(JS_SAMPLE), decodeGzip(body))
+
+	body, resp = request("GET", "http://localhost:8080/static/styles.css", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("2026-01-02", resp.Header.Get("ETag"))
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal("text/css", resp.Header.Get("content-type"))
+	assert.Equal("", resp.Header.Get("content-range"))
+	assert.Equal([]byte(CSS_SAMPLE), decodeGzip(body))
+
+	body, resp = request("GET", "http://localhost:8080/static/index.html", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("2026-01-03", resp.Header.Get("ETag"))
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal("text/html", resp.Header.Get("content-type"))
+	assert.Equal("", resp.Header.Get("content-range"))
+	assert.Equal([]byte(HTML_SAMPLE), decodeGzip(body))
+
+	body, resp = request("GET", "http://localhost:8080/static/data.json", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("2026-02-01", resp.Header.Get("ETag"))
+	assert.Equal("gzip", resp.Header.Get("content-encoding"))
+	assert.Equal("application/json", resp.Header.Get("content-type"))
+	assert.Equal("", resp.Header.Get("content-range"))
+	assert.Equal([]byte(JSON_SAMPLE), decodeGzip(body))
+
+	body, resp = request("GET", "http://localhost:8080/static/small_vid.mp4", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("2026-03-01", resp.Header.Get("ETag"))
+	assert.Equal("", resp.Header.Get("content-encoding"))
+	assert.Equal("video/mp4", resp.Header.Get("content-type"))
+	assert.Equal("", resp.Header.Get("content-range"))
+
+	body, resp = request("GET", "http://localhost:8080/static/big_vid.mp4", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal("2025-01-01", resp.Header.Get("ETag"))
+	assert.Equal("", resp.Header.Get("content-encoding"))
+	assert.Equal("video/mp4", resp.Header.Get("content-type"))
+	assert.Equal("bytes 0-5242943/5242944", resp.Header.Get("content-range"))
+	assert.Equal("5242944", resp.Header.Get("content-length"))
+}
+
 type Film struct {
 	Title        string    `json:"title"`
 	EpisodeID    int       `json:"episode_id"`
@@ -1899,6 +2255,11 @@ func decodeGzip(b []byte) []byte {
 	decoded, err := io.ReadAll(reader)
 	noErr(err)
 	return decoded
+}
+
+func must[T any](value T, err error) T {
+	noErr(err)
+	return value
 }
 
 const JS_SAMPLE = `'use strict';/*

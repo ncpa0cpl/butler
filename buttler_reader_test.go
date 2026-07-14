@@ -22,7 +22,7 @@ func TestFileReader(t *testing.T) {
 	file, err := os.Open(TEST_FILE_NAME)
 	assert.NoError(err)
 
-	reader, err := f.NewFileReader(file)
+	reader, err := f.NewFileReader(&f.DefaultFs{}, file)
 	assert.NoError(err)
 
 	var buff []byte

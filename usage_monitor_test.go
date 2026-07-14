@@ -111,8 +111,8 @@ func TestUsageMonitor(t *testing.T) {
 	paramBinStep := record1.Steps[1]
 	reqMdStep := record1.Steps[2]
 	handlerStem := record1.Steps[3]
-	etagStep := record1.Steps[4]
-	resMdStep := record1.Steps[5]
+	resMdStep := record1.Steps[4]
+	etagStep := record1.Steps[5]
 	encodeStep := record1.Steps[6]
 
 	assert.Equal("auth", authStep.Step)

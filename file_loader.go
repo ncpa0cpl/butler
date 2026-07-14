@@ -1,10 +1,7 @@
 package butler
 
 import (
-	"io"
-	"io/fs"
 	"net/http"
-	"os"
 )
 
 type FileLoader interface {
@@ -16,15 +13,18 @@ type FileLoader interface {
 	ContentType() string
 	ModTime() string
 	IsDir() bool
+	ETag() (string, error)
 	AllowStreaming() bool
 	AllowEncoding() bool
-	Close()
+	Close() error
 }
 
 type DefaultFileLoader struct {
+	fs FilesystemLayer
+
 	path string
-	file *os.File
-	stat fs.FileInfo
+	file File
+	stat FileStat
 
 	was_read bool
 	contents []byte
@@ -72,12 +72,12 @@ func (l DefaultFileLoader) ContentType() string {
 }
 
 func (l *DefaultFileLoader) Load(filepath string) error {
-	file, err := os.Open(filepath)
+	file, err := l.fs.Handle(filepath)
 	if err != nil {
 		return err
 	}
 
-	stat, err := file.Stat()
+	stat, err := l.fs.StatFromHandle(file)
 	if err != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func (l *DefaultFileLoader) ReadAll() ([]byte, error) {
 	}
 
 	l.file.Seek(0, 0)
-	contents, err := io.ReadAll(l.file)
+	contents, err := l.fs.ReadFromHandle(l.file)
 	l.file.Seek(0, 0)
 	if err != nil {
 		return nil, err
@@ -112,9 +112,13 @@ func (l DefaultFileLoader) Reader() (ButlerReader, error) {
 		return NewBytesReader(l.contents), nil
 	}
 
-	return NewFileReader(l.file)
+	return l.fs.ReaderFromHandle(l.file)
 }
 
-func (l *DefaultFileLoader) Close() {
-	l.file.Close()
+func (l DefaultFileLoader) ETag() (string, error) {
+	return l.fs.ETagFromHandle(l.file)
+}
+
+func (l *DefaultFileLoader) Close() error {
+	return l.file.Close()
 }

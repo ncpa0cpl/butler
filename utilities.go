@@ -112,71 +112,63 @@ func Brotli(data []byte) (*bytes.Buffer, error) {
 	return &buf, writer.Close()
 }
 
-func EncodeRequestGzip(request *Request, resp *Response) error {
-	if len(resp.Body) >= GZIP_MIN_SIZE && resp.Headers.Get("Content-Encoding") == "" {
+func EncodeRequestGzip(request *Request, resp *Response, body []byte) ([]byte, error) {
+	if len(body) >= GZIP_MIN_SIZE && resp.Headers.Get("Content-Encoding") == "" {
 		acceptedEncodings := request.Headers.Get("Accept-Encoding")
 		if strings.Contains(acceptedEncodings, "gzip") {
-			data, err := GZip(resp.Body)
+			data, err := GZip(body)
 			if err == nil {
-				resp.Body = data.Bytes()
 				resp.Headers.Set("Content-Encoding", "gzip")
+				return data.Bytes(), nil
 			} else {
-				return fmt.Errorf("encountered an error when encoding the response (GZip)")
+				return body, fmt.Errorf("encountered an error when encoding the response (GZip)")
 			}
 		}
 	}
-	return nil
+	return body, nil
 }
 
-func EncodeRequestDeflate(request *Request, resp *Response) error {
-	if len(resp.Body) >= DEFLATE_MIN_SIZE && resp.Headers.Get("Content-Encoding") == "" {
+func EncodeRequestDeflate(request *Request, resp *Response, body []byte) ([]byte, error) {
+	if len(body) >= DEFLATE_MIN_SIZE && resp.Headers.Get("Content-Encoding") == "" {
 		acceptedEncodings := request.Headers.Get("Accept-Encoding")
 		if strings.Contains(acceptedEncodings, "deflate") {
-			data, err := Deflate(resp.Body)
+			data, err := Deflate(body)
 			if err == nil {
-				resp.Body = data.Bytes()
 				resp.Headers.Set("Content-Encoding", "deflate")
+				return data.Bytes(), nil
 			} else {
-				return fmt.Errorf("encountered an error when encoding the response (Deflate)")
+				return body, fmt.Errorf("encountered an error when encoding the response (Deflate)")
 			}
 		}
 	}
-	return nil
+	return body, nil
 }
 
-func EncodeRequestBrotli(request *Request, resp *Response) error {
-	if len(resp.Body) >= BROTLI_MIN_SIZE && resp.Headers.Get("Content-Encoding") == "" {
+func EncodeRequestBrotli(request *Request, resp *Response, body []byte) ([]byte, error) {
+	if len(body) >= BROTLI_MIN_SIZE && resp.Headers.Get("Content-Encoding") == "" {
 		acceptedEncodings := request.Headers.Get("Accept-Encoding")
 		if strings.Contains(acceptedEncodings, "br") {
-			data, err := Brotli(resp.Body)
+			data, err := Brotli(body)
 			if err == nil {
-				resp.Body = data.Bytes()
 				resp.Headers.Set("Content-Encoding", "br")
+				return data.Bytes(), nil
 			} else {
-				return fmt.Errorf("encountered an error when encoding the response (Brotli)")
+				return body, fmt.Errorf("encountered an error when encoding the response (Brotli)")
 			}
 		}
 	}
-	return nil
+	return body, nil
 }
 
-func GenerateAndAddETag(response *Response) {
-	if len(response.Body) == 0 {
-		return
+func generateEtagHash(body []byte) (string, error) {
+	h := fnv.New64a()
+	_, err := h.Write(body)
+	if err != nil {
+		return "", err
 	}
-
-	if response.etag != "" {
-		response.Headers.Set("ETag", response.etag)
-		return
-	}
-
-	if response.Headers.Get("ETag") == "" {
-		h := fnv.New64a()
-		h.Write(response.Body)
-		hashValue := h.Sum64()
-		etag := fmt.Sprintf("%x", hashValue)
-		response.Headers.Set("ETag", etag)
-	}
+	hashValue := h.Sum64()
+	etag := fmt.Sprintf("%x", hashValue)
+	return etag, nil
 }
 
 func fileExists(path string) bool {
@@ -248,7 +240,7 @@ type mimet struct{}
 
 var Mime mimet
 
-func (mimet) DetectFile(filepath string, file *os.File) string {
+func (mimet) DetectFile(filepath string, file File) string {
 	ext := strings.ToLower(path.Ext(file.Name()))
 	switch ext {
 	case ".js":
@@ -287,4 +279,12 @@ var Units units = units{
 	KB: 1024,
 	MB: 1024 * 1024,
 	GB: 1024 * 1024 * 1024,
+}
+
+func firstOrZero[T any](list []T) T {
+	if len(list) == 0 {
+		var r T
+		return r
+	}
+	return list[0]
 }

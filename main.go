@@ -69,6 +69,7 @@ type Server struct {
 	http3                bool
 	http3Server          *http3.Server
 	cancelFn             context.CancelFunc
+	filesystem           FilesystemLayer
 }
 
 func CreateServer() *Server {
@@ -79,16 +80,21 @@ func CreateServer() *Server {
 	e.Logger = slog.New(log.SlogHandler())
 
 	return &Server{
-		Port:      80,
-		Cors:      &CorsSettings{},
-		log:       log,
-		echo:      e,
-		endpoints: []EndpointInterface{},
+		Port:       80,
+		Cors:       &CorsSettings{},
+		log:        log,
+		echo:       e,
+		endpoints:  []EndpointInterface{},
+		filesystem: &DefaultFs{},
 	}
 }
 
 func (server *Server) GetEcho() *echo.Echo {
 	return server.echo
+}
+
+func (server *Server) SetFs(fs FilesystemLayer) {
+	server.filesystem = fs
 }
 
 func (server *Server) SetLogger(logger ILogger) {

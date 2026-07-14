@@ -87,7 +87,10 @@ func (e *BasicEndpoint[T]) GetEncoding() string {
 }
 
 func (e *BasicEndpoint[T]) GetCachePolicy() *HttpCachePolicy {
-	return e.CachePolicy
+	if e.CachePolicy != nil {
+		return e.CachePolicy
+	}
+	return &HttpCachePolicy{NoStore: true}
 }
 
 func (e *BasicEndpoint[T]) GetStreamingSettings() *StreamingSettings {

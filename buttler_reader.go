@@ -2,7 +2,6 @@ package butler
 
 import (
 	"io"
-	"os"
 )
 
 type ButlerReader interface {
@@ -59,13 +58,14 @@ func (r *BytesReader) Close() {}
 
 type FileReader struct {
 	filesize int64
-	file     *os.File
+	file     File
 	cursor   int
 }
 
-func NewFileReader(file *os.File) (*FileReader, error) {
-	stat, err := file.Stat()
+func NewFileReader(fs FilesystemLayer, file File) (*FileReader, error) {
+	stat, err := fs.StatFromHandle(file)
 	if err != nil {
+		file.Close()
 		return nil, err
 	}
 
