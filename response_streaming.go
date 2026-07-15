@@ -9,7 +9,7 @@ import (
 	"sync"
 	"syscall"
 
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 )
 
 type StreamingSettings struct {
@@ -34,23 +34,23 @@ func (s *StreamingSettings) genKeepAliveHeader() string {
 	return fmt.Sprintf("timeout=%d, max=%d", s.KeepAliveTimeout, s.KeepAliveMax)
 }
 
-func (resp *Response) stream(ctx echo.Context, request *Request) error {
-	if len(resp.Body) == 0 {
+func (resp *Response) stream(ctx *echo.Context, request *Request, body []byte) error {
+	if len(body) == 0 {
 		panic("cannot stream an empty body")
 	}
 
-	reader := NewBytesReader(resp.Body)
+	reader := NewBytesReader(body)
 	return streamReader(ctx, request, resp, reader)
 }
 
-func (resp *Response) streamFromReader(ctx echo.Context, request *Request) error {
+func (resp *Response) streamFromReader(ctx *echo.Context, request *Request) error {
 	if resp.streamReader == nil {
 		panic("cannot stream without a reader")
 	}
 	return streamReader(ctx, request, resp, resp.streamReader)
 }
 
-func streamReader(ctx echo.Context, request *Request, resp *Response, reader ButlerReader) error {
+func streamReader(ctx *echo.Context, request *Request, resp *Response, reader ButlerReader) error {
 	defer reader.Close()
 	respH := ctx.Response().Header()
 
@@ -58,6 +58,7 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 
 	requestedRange, err := parseRangeHeader(request.Headers)
 	if err != nil {
+		resp.Status = 400
 		ctx.NoContent(400)
 		return err
 	}
@@ -88,7 +89,7 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 		requestedRange.End = max(0, dataSize-1)
 	}
 
-	writer := ctx.Response().Writer
+	writer := ctx.Response()
 
 	if requestedRange.Start == requestedRange.End {
 		respH.Set("Content-Length", "0")
@@ -110,6 +111,7 @@ func streamReader(ctx echo.Context, request *Request, resp *Response, reader But
 
 	done := reader.Skip(requestedRange.Start)
 	if done {
+		resp.Status = 400
 		ctx.NoContent(400)
 		return err
 	}
@@ -224,7 +226,7 @@ func (fw *flushWriter) WriteString(str string) bool {
 	return fw.Write([]byte(str))
 }
 
-func (resp *Response) streamFromWriter(ctx echo.Context, handler func(HttpWriter) error) error {
+func (resp *Response) streamFromWriter(ctx *echo.Context, handler func(HttpWriter) error) error {
 	respH := ctx.Response().Header()
 
 	contentType := resp.Headers.Get("Content-Type")
@@ -238,7 +240,7 @@ func (resp *Response) streamFromWriter(ctx echo.Context, handler func(HttpWriter
 	respH.Set("Keep-Alive", settings.genKeepAliveHeader())
 	respH.Set("Content-Type", contentType)
 
-	writer := ctx.Response().Writer
+	writer := ctx.Response()
 	flusher, ok := writer.(http.Flusher)
 	if !ok {
 		panic("unable to get the http.Flusher")

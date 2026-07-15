@@ -1,7 +1,7 @@
 package butler
 
 import (
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 )
 
 type Endpoint[T any, B any] struct {
@@ -16,7 +16,35 @@ type Endpoint[T any, B any] struct {
 	// when receiving a request with a If-None-Match header.
 	CachePolicy       *HttpCachePolicy
 	StreamingSettings *StreamingSettings
-	Handler           func(request *Request, params T, body *B) *Response
+	// A handler function for adding headers to the response.
+	//
+	// Header values set by this handler take priority over what the Handler
+	// defines.
+	//
+	// This function is also used to generate responses to http HEAD requests.
+	//
+	// Example:
+	//   import (b "github.com/ncpa0cpl/butler")
+	//
+	//   b.Endpoint[Params, Body]{
+	//     Head: func(req *b.Request, p Params, s int) *b.Headers {
+	// 	     return b.NewHeaders().
+	// 	     	Set("Expires", "2026-03-16T12:00:00").
+	// 	     	Set("X-Powered-By", "http-butler")
+	//     },
+	//   }
+	Head    func(request *Request, params T, respStatus int) *Headers
+	Handler func(request *Request, params T, body *B) *Response
+	// Optional function for generating an ETag
+	//
+	// Value returned by this function will be set in the response Etag header.
+	//
+	// If the returned ETag matches the requests `If-None-Match` header
+	// the handler call will be skipped and a 304 response will be sent
+	//
+	// If this function is nil, Butler will instead read the response body and
+	// generate a hash to be used as an ETag
+	GetEtag func(request *Request) string
 
 	Description string
 	Name        string
@@ -61,7 +89,10 @@ func (e *Endpoint[T, B]) GetEncoding() string {
 }
 
 func (e *Endpoint[T, B]) GetCachePolicy() *HttpCachePolicy {
-	return e.CachePolicy
+	if e.CachePolicy != nil {
+		return e.CachePolicy
+	}
+	return &HttpCachePolicy{NoStore: true}
 }
 
 func (e *Endpoint[T, B]) GetStreamingSettings() *StreamingSettings {
@@ -74,6 +105,10 @@ func (e *Endpoint[T, B]) GetMiddlewares() []Middleware {
 
 func (e *Endpoint[T, B]) Use(middleware Middleware) {
 	e.middlewares = append(e.middlewares, middleware)
+}
+
+func (e *Endpoint[T, B]) EtagGenerator() func(request *Request) string {
+	return e.GetEtag
 }
 
 func (e *Endpoint[T, B]) BindParams(request *Request) *ParamParsingError {
@@ -91,7 +126,7 @@ func (e *Endpoint[T, B]) BindParams(request *Request) *ParamParsingError {
 	return nil
 }
 
-func (e *Endpoint[T, B]) ExecuteHandler(ctx echo.Context, request *Request) (retVal *Response) {
+func (e *Endpoint[T, B]) ExecuteHandler(ctx *echo.Context, request *Request) (retVal *Response) {
 	body, err := e.parseBody(ctx)
 	if err != nil {
 		request.Logger.Error(err)
@@ -102,6 +137,17 @@ func (e *Endpoint[T, B]) ExecuteHandler(ctx echo.Context, request *Request) (ret
 
 	response := e.Handler(request, params, body)
 	return response
+}
+
+func (e *Endpoint[T, B]) GetHeadHandler() HeadHandler {
+	if e.Head == nil {
+		return nil
+	}
+
+	return func(ctx *echo.Context, request *Request, status int) *Headers {
+		params := request.GetParamsInterface().(T)
+		return e.Head(request, params, status)
+	}
 }
 
 func (e *Endpoint[T, B]) Register(parent EndpointParent) {
@@ -116,7 +162,7 @@ func (e *Endpoint[T, B]) Register(parent EndpointParent) {
 	registerEndpoint(e, parent)
 }
 
-func (e *Endpoint[T, B]) parseBody(ctx echo.Context) (*B, error) {
+func (e *Endpoint[T, B]) parseBody(ctx *echo.Context) (*B, error) {
 	var body B
 	err := ctx.Bind(&body)
 	return &body, err

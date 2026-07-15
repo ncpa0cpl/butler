@@ -3,14 +3,14 @@ package butler
 import (
 	"fmt"
 	"net/http"
-	"runtime"
+	"runtime/debug"
 	"time"
 
 	"github.com/gorilla/websocket"
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 )
 
-var upgrader = websocket.Upgrader{}
+var DefaultUpgrader = websocket.Upgrader{}
 
 type WebSocketEndpoint struct {
 	Path       string
@@ -27,6 +27,10 @@ type WebSocketEndpoint struct {
 	// can return a response that will be sent instead of upgrading the connection. To allow upgrade
 	// return nil.
 	BeforeUpgrade func(request *Request) *Response
+	// provide a websocket Upgrader that will be used to upgrade the connection
+	//
+	// by default a `websocket.Upgrader{}` will be used
+	Upgrader func() websocket.Upgrader
 
 	Description string
 	Name        string
@@ -83,9 +87,17 @@ func (e *WebSocketEndpoint) BindParams(*Request) *ParamParsingError {
 	return nil
 }
 
-func (e *WebSocketEndpoint) ExecuteHandler(ctx echo.Context, request *Request) error {
+func (e *WebSocketEndpoint) ExecuteHandler(ctx *echo.Context, request *Request) error {
+	var upgrader websocket.Upgrader
+	if e.Upgrader != nil {
+		upgrader = e.Upgrader()
+	} else {
+		upgrader = DefaultUpgrader
+	}
+
 	ws, err := upgrader.Upgrade(ctx.Response(), ctx.Request(), nil)
 	if err != nil {
+		request.Logger.Error("failed to upgrade the connection", err)
 		return err
 	}
 
@@ -103,7 +115,15 @@ func (e *WebSocketEndpoint) ExecuteHandler(ctx echo.Context, request *Request) e
 		e.WriteTimeout = 30 * time.Second
 	}
 
-	return e.OnOpen(newWebsocket(request, ws, e.PingInterval, e.PongTimeout, e.WriteTimeout))
+	request.Logger.Debug("connection upgraded, creating WebSocket")
+
+	websocket := newWebsocket(request, ws, e.PingInterval, e.PongTimeout, e.WriteTimeout)
+
+	request.Logger.Debug("WebSocket interface created")
+
+	websocket.Start(e.OnOpen)
+
+	return nil
 }
 
 func (e *WebSocketEndpoint) Register(parent EndpointParent) {
@@ -130,7 +150,7 @@ func (e *WebSocketEndpoint) Register(parent EndpointParent) {
 		authHandlers = append(authHandlers, endpAuth)
 	}
 
-	handler := func(ctx echo.Context) error {
+	handler := func(ctx *echo.Context) (resultErr error) {
 		request := NewRequest(ctx, monitor, parent)
 
 		defer func() {
@@ -142,21 +162,12 @@ func (e *WebSocketEndpoint) Register(parent EndpointParent) {
 				if !ok {
 					err = fmt.Errorf("%v", r)
 				}
-				var stack []byte
-				var length int
 
-				stack = make([]byte, Units.MB)
-				length = runtime.Stack(stack, true)
-				stack = stack[:length]
+				request.Logger.Fatal(
+					fmt.Sprintf("[PANIC RECOVERY] %v \nStack trace: %v", err, string(debug.Stack())),
+				)
 
-				msg := fmt.Sprintf("[PANIC RECOVERY] %v %s", err, stack[:length])
-				request.Logger.Fatal(msg)
-
-				if err != nil {
-					ctx.Error(err)
-				} else {
-					ctx.NoContent(500)
-				}
+				resultErr = ctx.NoContent(500)
 			}
 		}()
 
@@ -164,7 +175,7 @@ func (e *WebSocketEndpoint) Register(parent EndpointParent) {
 			for _, authHandler := range authHandlers {
 				auth := authHandler(request)
 				if !auth.IsSuccessful() {
-					return auth.SendResponse(request)
+					return auth.GetResponse().send(request)
 				}
 			}
 		}
@@ -198,6 +209,8 @@ func (e *WebSocketEndpoint) Register(parent EndpointParent) {
 
 		if response == nil {
 			return e.ExecuteHandler(ctx, request)
+		} else {
+			request.Logger.Debug("WS endpoint created a response, response will be sent instead of upgrading the connection")
 		}
 
 		for _, md := range respMiddlewares {
@@ -216,14 +229,10 @@ func (e *WebSocketEndpoint) Register(parent EndpointParent) {
 			}
 		}
 
-		if response.customHandler != nil {
-			return response.send(request)
-		}
-
 		return response.send(request)
 	}
 
-	echoServer.GET(e.Path, handler)
+	echoServer.GET(e.GetPath(), handler)
 }
 
 //

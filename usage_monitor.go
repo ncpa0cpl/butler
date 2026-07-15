@@ -20,6 +20,13 @@ type UsageRecord struct {
 	Steps       []UsageRecordStep
 	Start       *time.Time
 	End         *time.Time
+	// The HTTP status of the final response
+	// unavailable for custom handlers
+	RespStatus uint
+	// Total length of the body
+	//
+	// For streamed responses this is the total length not the actually delivered amount
+	RespLen uint
 }
 
 type UsageMonitor interface {
@@ -34,7 +41,7 @@ type RecordBuilder interface {
 
 type monitorRecorder interface {
 	CreateRecord(method, routePattern, urlpath string) RecordBuilder
-	FinalizeRecord(RecordBuilder)
+	FinalizeRecord(b RecordBuilder, status, respLen uint)
 }
 
 type voidRecorder struct{}
@@ -43,7 +50,7 @@ func (voidRecorder) CreateRecord(method, routePattern, urlpath string) RecordBui
 	return &voidRecord{}
 }
 
-func (voidRecorder) FinalizeRecord(rb RecordBuilder) {}
+func (voidRecorder) FinalizeRecord(rb RecordBuilder, status, respLen uint) {}
 
 type voidRecord struct{}
 
@@ -72,10 +79,12 @@ func (usageMonitorRecorder) CreateRecord(method, routePattern, urlpath string) R
 	return &usageMonitorRecord{&rec}
 }
 
-func (umr *usageMonitorRecorder) FinalizeRecord(r RecordBuilder) {
+func (umr *usageMonitorRecorder) FinalizeRecord(r RecordBuilder, status, respLen uint) {
 	now := time.Now()
 	rec := r.GetRecord()
 	rec.End = &now
+	rec.RespStatus = status
+	rec.RespLen = respLen
 	go umr.usageMonitor.Record(rec)
 }
 
@@ -126,6 +135,7 @@ type mstep struct {
 	Encoding      string
 	Custom        string
 	BindinParams  string
+	Streaming     string
 }
 
 var MonitorStep = mstep{
@@ -136,5 +146,6 @@ var MonitorStep = mstep{
 	EtagHandler:   "internal:etag",
 	Encoding:      "internal:encoding",
 	BindinParams:  "internal:bind_params",
+	Streaming:     "internal:streaming",
 	Custom:        "custom",
 }

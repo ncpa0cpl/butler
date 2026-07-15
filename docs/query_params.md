@@ -74,3 +74,53 @@ func main() {
 	app.Listen()
 }
 ```
+
+## Parameter names
+
+Names of the parameters by default are the same as the struct field names, but with the first letter in lowercase (ex. "Limit" -> "limit").
+
+Param names can be overridden with a "name" tag like so:
+
+```go
+type UserParams struct {
+	QueryLimit *butler.StringQParam `name:"limit"`
+}
+```
+
+## Default Parameters
+
+1. `butler.StringQParam` - string
+2. `butler.StringListQParam` - []string
+3. `butler.NumberQParam` - int64
+4. `butler.NumberListQParam` - []int64
+5. `butler.FloatQParam` - float64
+6. `butler.FloatListQParam` - []float64
+7. `butler.BoolQParam` - bool
+8. `butler.StringUrlParam` - string
+9. `butler.NumberUrlParam` - int64
+10. `butler.FloatUrlParam` - float64
+11. `butler.BoolUrlParam` - bool
+
+## Custom Parameters
+
+It's possible to implement custom parameters. It needs to implement the following interface:
+
+```go
+type SearchQParam interface {
+	Init(req *Request, name string) *ParamParsingError
+}
+```
+
+### Example
+
+```go
+type MyCustomParam struct {
+	Value string
+}
+
+func (p *MyCustomParam) Init(ctx *Request, name string) *ParamParsingError {
+	v := ctx.EchoContext().QueryParam(name)
+	p.Value = v
+	return nil
+}
+```

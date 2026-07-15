@@ -51,8 +51,12 @@ func request(method string, url string, body any, headers ...header) ([]byte, *h
 	resp, err := client.Do(req)
 	noErr(err)
 
-	respBody, err := io.ReadAll(resp.Body)
-	noErr(err)
+	var respBody []byte
+
+	if resp.Body != nil {
+		respBody, err = io.ReadAll(resp.Body)
+		noErr(err)
+	}
 
 	return respBody, resp
 }

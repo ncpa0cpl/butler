@@ -1,25 +1,25 @@
 package butler
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"io"
+	"log/slog"
 
 	"time"
 
-	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/log"
 )
 
 type RequestLogger struct {
-	logger      echo.Logger
+	logger      ILogger
 	request     *Request
 	method      string
 	path        string
 	userHandler LogHandler
 }
 
-func newRequestLogger(request *Request, l echo.Logger) RequestLogger {
+func newRequestLogger(request *Request, l ILogger) RequestLogger {
 	return RequestLogger{l, request, request.Method, request.Path, request.parent.GetReqLogHandler()}
 }
 
@@ -31,6 +31,10 @@ func (l RequestLogger) addPrefix(msg []any) []any {
 func (l RequestLogger) addFmtPrefix(msg string, args []any) (string, []any) {
 	args = append([]any{l.method, l.path}, args...)
 	return "%s %s - " + msg, args
+}
+
+func (l RequestLogger) GlobalLogger() ILogger {
+	return l.logger
 }
 
 func (l RequestLogger) Info(msg ...any) {
@@ -192,90 +196,62 @@ func (bl *ButlerLogger) SetLevel(v log.Lvl) {
 func (bl *ButlerLogger) SetHeader(h string) {}
 
 func (bl *ButlerLogger) Print(i ...any) {
-	bl.log(LogLevel.Print, "", i...)
+	bl.log(LogLevel.Print, i...)
 }
 
 func (bl *ButlerLogger) Printf(format string, args ...any) {
-	bl.log(LogLevel.Print, format, args...)
-}
-
-func (bl *ButlerLogger) Printj(j log.JSON) {
-	bl.log(LogLevel.Print, "json", j)
+	bl.logf(LogLevel.Print, format, args...)
 }
 
 func (bl *ButlerLogger) Debug(i ...any) {
-	bl.log(LogLevel.Debug, "", i...)
+	bl.log(LogLevel.Debug, i...)
 }
 
 func (bl *ButlerLogger) Debugf(format string, args ...any) {
-	bl.log(LogLevel.Debug, format, args...)
-}
-
-func (bl *ButlerLogger) Debugj(j log.JSON) {
-	bl.log(LogLevel.Debug, "json", j)
+	bl.logf(LogLevel.Debug, format, args...)
 }
 
 func (bl *ButlerLogger) Info(i ...any) {
-	bl.log(LogLevel.Info, "", i...)
+	bl.log(LogLevel.Info, i...)
 }
 
 func (bl *ButlerLogger) Infof(format string, args ...any) {
-	bl.log(LogLevel.Info, format, args...)
-}
-
-func (bl *ButlerLogger) Infoj(j log.JSON) {
-	bl.log(LogLevel.Info, "json", j)
+	bl.logf(LogLevel.Info, format, args...)
 }
 
 func (bl *ButlerLogger) Warn(i ...any) {
-	bl.log(LogLevel.Warn, "", i...)
+	bl.log(LogLevel.Warn, i...)
 }
 
 func (bl *ButlerLogger) Warnf(format string, args ...any) {
-	bl.log(LogLevel.Warn, format, args...)
-}
-
-func (bl *ButlerLogger) Warnj(j log.JSON) {
-	bl.log(LogLevel.Warn, "json", j)
+	bl.logf(LogLevel.Warn, format, args...)
 }
 
 func (bl *ButlerLogger) Error(i ...any) {
-	bl.log(LogLevel.Error, "", i...)
+	bl.log(LogLevel.Error, i...)
 }
 
 func (bl *ButlerLogger) Errorf(format string, args ...any) {
-	bl.log(LogLevel.Error, format, args...)
-}
-
-func (bl *ButlerLogger) Errorj(j log.JSON) {
-	bl.log(LogLevel.Error, "json", j)
+	bl.logf(LogLevel.Error, format, args...)
 }
 
 func (bl *ButlerLogger) Fatal(i ...any) {
-	bl.log(LogLevel.Fatal, "", i...)
-}
-
-func (bl *ButlerLogger) Fatalj(j log.JSON) {
-	bl.log(LogLevel.Fatal, "json", j)
+	bl.log(LogLevel.Fatal, i...)
 }
 
 func (bl *ButlerLogger) Fatalf(format string, args ...any) {
-	bl.log(LogLevel.Fatal, format, args...)
+	bl.logf(LogLevel.Fatal, format, args...)
 }
 
 func (bl *ButlerLogger) Panic(i ...any) {
-	bl.log(LogLevel.Panic, "", i...)
-}
-
-func (bl *ButlerLogger) Panicj(j log.JSON) {
-	bl.log(LogLevel.Panic, "json", j)
+	bl.log(LogLevel.Panic, i...)
 }
 
 func (bl *ButlerLogger) Panicf(format string, args ...any) {
-	bl.log(LogLevel.Panic, format, args...)
+	bl.logf(LogLevel.Panic, format, args...)
 }
 
-func (bl *ButlerLogger) log(level log.Lvl, format string, args ...any) {
+func (bl *ButlerLogger) log(level log.Lvl, args ...any) {
 	if level < bl.lvl && level != 0 {
 		return
 	}
@@ -291,20 +267,105 @@ func (bl *ButlerLogger) log(level log.Lvl, format string, args ...any) {
 	}
 
 	message += levelString(level)
-
-	if format == "" {
-		message += fmt.Sprint(args...)
-	} else if format == "json" {
-		b, err := json.Marshal(args[0])
-		if err != nil {
-			panic(err)
-		}
-		message += string(b)
-	} else {
-		message += fmt.Sprintf(format, args...)
-	}
+	message += fmt.Sprint(args...)
 
 	bl.writer.Write([]byte(message + "\n"))
+}
+
+func (bl *ButlerLogger) logf(level log.Lvl, format string, args ...any) {
+	if level < bl.lvl && level != 0 {
+		return
+	}
+
+	var message string
+
+	if bl.timestamps {
+		message = time.Now().UTC().Format("2006-01-02T15:04:05.999Z07:00") + " "
+	}
+
+	if bl.prefix != "" {
+		message += bl.prefix + " "
+	}
+
+	message += levelString(level)
+	message += fmt.Sprintf(format, args...)
+
+	bl.writer.Write([]byte(message + "\n"))
+}
+
+type ButlerLoggerSlogHandler struct {
+	bl    *ButlerLogger
+	attrs []slog.Attr
+	name  string
+}
+
+func (bl *ButlerLogger) SlogHandler() slog.Handler {
+	return &ButlerLoggerSlogHandler{
+		bl,
+		[]slog.Attr{},
+		"",
+	}
+}
+
+func (h *ButlerLoggerSlogHandler) Enabled(ctx context.Context, lvl slog.Level) bool {
+	switch lvl {
+	case slog.LevelDebug:
+		return h.bl.lvl <= LogLevel.Debug
+	case slog.LevelError:
+		return h.bl.lvl <= LogLevel.Error
+	case slog.LevelWarn:
+		return h.bl.lvl <= LogLevel.Warn
+	case slog.LevelInfo:
+		return h.bl.lvl <= LogLevel.Info
+	}
+	return false
+}
+
+func (h *ButlerLoggerSlogHandler) Handle(ctx context.Context, record slog.Record) error {
+	var blvl log.Lvl
+	switch record.Level {
+	case slog.LevelDebug:
+		blvl = LogLevel.Debug
+	case slog.LevelError:
+		blvl = LogLevel.Error
+	case slog.LevelWarn:
+		blvl = LogLevel.Warn
+	case slog.LevelInfo:
+		blvl = LogLevel.Info
+	}
+
+	msg := ""
+
+	if h.name != "" {
+		msg = fmt.Sprintf("[%s] %s", h.name, record.Message)
+	} else {
+		msg = record.Message
+	}
+
+	record.Attrs(func(a slog.Attr) bool {
+		msg = fmt.Sprintf("%s %s=%s", msg, a.Key, a.Value.String())
+		return true
+	})
+
+	h.bl.log(blvl, "", msg)
+
+	return nil
+}
+
+func (h *ButlerLoggerSlogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &ButlerLoggerSlogHandler{
+		h.bl,
+		append(h.attrs, attrs...),
+		h.name,
+	}
+}
+
+func (h *ButlerLoggerSlogHandler) WithGroup(name string) slog.Handler {
+	return &ButlerLoggerSlogHandler{
+		h.bl,
+		h.attrs,
+		fmt.Sprintf("%s.%s", h.name, name),
+	}
 }
 
 func levelString(level log.Lvl) string {

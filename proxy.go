@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/carlmjohnson/requests"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type ProxyRequestOptions struct {
@@ -18,8 +18,8 @@ type ProxyRequestOptions struct {
 	DoNotForwardHeaders bool
 }
 
-func createProxyHandler(response *Response, url string, opts *ProxyRequestOptions) func(ctx echo.Context) error {
-	return func(ctx echo.Context) error {
+func createProxyHandler(response *Response, url string, opts *ProxyRequestOptions) func(ctx *echo.Context) error {
+	return func(ctx *echo.Context) error {
 		req := requests.URL(url)
 
 		if opts != nil && opts.Method != "" {
@@ -65,7 +65,7 @@ func createProxyHandler(response *Response, url string, opts *ProxyRequestOption
 		}
 
 		respHeaders := ctx.Response().Header()
-		respWriter := ctx.Response().Writer
+		respWriter := ctx.Response()
 
 		req.AddValidator(func(res *http.Response) error {
 			for k, v := range res.Header {

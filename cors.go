@@ -3,7 +3,7 @@ package butler
 import (
 	"net/http"
 
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 	"github.com/ncpa0cpl/butler/echo_middleware/cors"
 )
 
@@ -107,6 +107,6 @@ func (s *CorsSettings) AllowOriginFunc(fn func(req *http.Request, origin string)
 }
 
 // Skipper defines a function to skip middleware.
-func (s *CorsSettings) Skip(skipper func(c echo.Context) bool) {
+func (s *CorsSettings) Skip(skipper func(c *echo.Context) bool) {
 	s.config.Skipper = skipper
 }

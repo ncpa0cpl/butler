@@ -1,6 +1,6 @@
 package butler
 
-import echo "github.com/labstack/echo/v4"
+import echo "github.com/labstack/echo/v5"
 
 type Group struct {
 	Path string
