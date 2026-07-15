@@ -102,6 +102,8 @@ func TestUsageMonitor(t *testing.T) {
 	record1 := monitor.Get(0)
 
 	assert.Equal("GET", record1.Method)
+	assert.Equal(uint(200), record1.RespStatus)
+	assert.NotZero(record1.RespLen)
 	assert.Equal("/api/books", record1.UrlPath)
 	assert.NotNil(record1.Start)
 	assert.NotNil(record1.End)
@@ -161,4 +163,104 @@ func TestUsageMonitor(t *testing.T) {
 
 	assert.Equal("/api/books/12", record2.UrlPath)
 	assert.Equal("/api/books/:id", record2.PathPattern)
+}
+
+func TestUsageMonitorWithStreaming(t *testing.T) {
+	assert := assert.New(t)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	monitor := TestMonitor{}
+	server.Monitor(&monitor)
+
+	content := addVidPrefix(fill(make([]byte, 2*f.Units.MB), 1))
+
+	video := &f.BasicEndpoint[f.NoParams]{
+		Method: "GET",
+		Path:   "/stream",
+		CachePolicy: &f.HttpCachePolicy{
+			MaxAge: time.Hour,
+		},
+		Auth: func(request *f.Request) *f.Ath {
+			return f.Auth.Ok()
+		},
+		Handler: func(request *f.Request, params f.NoParams) *f.Response {
+			return f.Respond.Ok().StreamBytes(content, "video/mp4")
+		},
+	}
+
+	group := &f.Group{
+		Path: "/videos",
+	}
+
+	group.Use(f.Middleware{
+		Name: "MdFoo",
+		OnRequest: func(request *f.Request, respond func(response *f.Response)) error {
+			return nil
+		},
+		OnResponse: func(request *f.Request, response *f.Response, next func(response *f.Response)) error {
+			return nil
+		},
+	})
+
+	group.Add(video)
+	server.Add(group)
+
+	go server.Listen()
+	defer server.Close()
+
+	_, resp := request("GET", "http://localhost:8080/videos/stream", nil, header{"accept-encoding", "gzip"})
+	assert.Equal(200, resp.StatusCode)
+
+	waitUntil(func() bool {
+		return monitor.Len() == 1
+	})
+
+	record1 := monitor.Get(0)
+
+	assert.Equal("GET", record1.Method)
+	assert.Equal(uint(200), record1.RespStatus)
+	assert.Equal(uint(len(content)), record1.RespLen)
+	assert.Equal("/videos/stream", record1.UrlPath)
+	assert.NotNil(record1.Start)
+	assert.NotNil(record1.End)
+	assert.Equal(6, len(record1.Steps))
+
+	authStep := record1.Steps[0]
+	paramBinStep := record1.Steps[1]
+	reqMdStep := record1.Steps[2]
+	handlerStem := record1.Steps[3]
+	resMdStep := record1.Steps[4]
+	streamStep := record1.Steps[5]
+
+	assert.Equal("auth", authStep.Step)
+	assert.Equal("", authStep.Name)
+	assert.NotNil(authStep.Start)
+	assert.NotNil(authStep.End)
+
+	assert.Equal("internal:bind_params", paramBinStep.Step)
+	assert.Equal("", paramBinStep.Name)
+	assert.NotNil(paramBinStep.Start)
+	assert.NotNil(paramBinStep.End)
+
+	assert.Equal("middleware:request", reqMdStep.Step)
+	assert.Equal("MdFoo", reqMdStep.Name)
+	assert.NotNil(reqMdStep.Start)
+	assert.NotNil(reqMdStep.End)
+
+	assert.Equal("handler", handlerStem.Step)
+	assert.Equal("", handlerStem.Name)
+	assert.NotNil(handlerStem.Start)
+	assert.NotNil(handlerStem.End)
+
+	assert.Equal("middleware:response", resMdStep.Step)
+	assert.Equal("MdFoo", resMdStep.Name)
+	assert.NotNil(resMdStep.Start)
+	assert.NotNil(resMdStep.End)
+
+	assert.Equal("internal:streaming", streamStep.Step)
+	assert.Equal("", streamStep.Name)
+	assert.NotNil(streamStep.Start)
+	assert.NotNil(streamStep.End)
 }

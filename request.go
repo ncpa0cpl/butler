@@ -112,8 +112,8 @@ func (r *Request) monitorEnd(step, name string) {
 	r.monitorRecord.StepEnd(step, name)
 }
 
-func (r *Request) completeMonitor() {
-	r.monitor.FinalizeRecord(r.monitorRecord)
+func (r *Request) completeMonitor(status, respLen uint) {
+	r.monitor.FinalizeRecord(r.monitorRecord, status, respLen)
 }
 
 func (r *Request) saveSessions() {

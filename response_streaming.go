@@ -58,6 +58,7 @@ func streamReader(ctx *echo.Context, request *Request, resp *Response, reader Bu
 
 	requestedRange, err := parseRangeHeader(request.Headers)
 	if err != nil {
+		resp.Status = 400
 		ctx.NoContent(400)
 		return err
 	}
@@ -110,6 +111,7 @@ func streamReader(ctx *echo.Context, request *Request, resp *Response, reader Bu
 
 	done := reader.Skip(requestedRange.Start)
 	if done {
+		resp.Status = 400
 		ctx.NoContent(400)
 		return err
 	}

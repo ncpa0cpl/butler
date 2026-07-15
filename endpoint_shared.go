@@ -177,7 +177,6 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 	handler := func(ctx *echo.Context) (result error) {
 		request := NewRequest(ctx, monitor, parent)
-		defer request.completeMonitor()
 
 		defer func() {
 			if r := recover(); r != nil {
@@ -254,7 +253,6 @@ func registerEndpoint[E AnyEndpoint](e E, parent EndpointParent) {
 
 	headHandler := func(ctx *echo.Context) (result error) {
 		request := NewRequest(ctx, monitor, parent)
-		defer request.completeMonitor()
 
 		defer func() {
 			if r := recover(); r != nil {

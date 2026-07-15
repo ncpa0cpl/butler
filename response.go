@@ -289,6 +289,7 @@ func (resp *Response) send(request *Request) error {
 		err := resp.customHandler(ctx)
 		request.monitorEnd(MonitorStep.Custom, "")
 		request.saveSessions()
+		request.completeMonitor(0, 0)
 		return err
 	}
 
@@ -326,6 +327,7 @@ func (resp *Response) send(request *Request) error {
 			ifNoneMatch := request.Headers.Get("If-None-Match")
 			if etag == ifNoneMatch {
 				resp.Headers.CopyInto(respHeaders)
+				request.completeMonitor(304, 0)
 				return ctx.NoContent(304)
 			}
 		}
@@ -336,13 +338,21 @@ func (resp *Response) send(request *Request) error {
 	if resp.streamWriter != nil {
 		request.saveSessions()
 		resp.Headers.CopyInto(respHeaders)
-		return resp.streamFromWriter(ctx, resp.streamWriter)
+		request.monitorStart(MonitorStep.Streaming, "")
+		err := resp.streamFromWriter(ctx, resp.streamWriter)
+		request.monitorEnd(MonitorStep.Streaming, "")
+		request.completeMonitor(uint(resp.Status), 0)
+		return err
 	}
 
 	if resp.streamReader != nil {
 		request.saveSessions()
 		resp.Headers.CopyInto(respHeaders)
-		return resp.streamFromReader(ctx, request)
+		request.monitorStart(MonitorStep.Streaming, "")
+		err := resp.streamFromReader(ctx, request)
+		request.monitorEnd(MonitorStep.Streaming, "")
+		request.completeMonitor(uint(resp.Status), uint(resp.streamReader.Len()))
+		return err
 	}
 
 	body := resp.bodyResolver.Resolve(resp)
@@ -362,13 +372,19 @@ func (resp *Response) send(request *Request) error {
 	if body != nil && len(body) > 0 {
 		if resp.shouldAutoStream(request, body) {
 			respHeaders.Del("Content-Length")
-			return resp.stream(ctx, request, body)
+			request.monitorStart(MonitorStep.Streaming, "")
+			err := resp.stream(ctx, request, body)
+			request.monitorEnd(MonitorStep.Streaming, "")
+			request.completeMonitor(uint(resp.Status), uint(len(body)))
+			return err
 		} else {
 			respHeaders.Set("Content-Length", strconv.Itoa(len(body)))
+			request.completeMonitor(uint(resp.Status), uint(len(body)))
 			return ctx.Blob(resp.Status, resp.Headers.Get("Content-Type"), body)
 		}
 	}
 
+	request.completeMonitor(uint(resp.Status), 0)
 	return ctx.NoContent(resp.Status)
 }
 
