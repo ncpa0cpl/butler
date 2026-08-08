@@ -313,9 +313,8 @@ func (resp *Response) send(request *Request) error {
 	}
 
 	etag := resp.bodyResolver.ETag()
-	if etag != "" && request.Method == "GET" && resp.Status >= 200 && resp.Status < 300 {
-		cp := resp.CachePolicy
-
+	cp := resp.CachePolicy
+	if etag != "" && request.Method == "GET" && resp.Status >= 200 && resp.Status < 300 && !cp.NoStore {
 		respHeaders.Set("ETag", etag)
 		respHeaders.Set("Cache-Control", cp.CacheControlHeader())
 
