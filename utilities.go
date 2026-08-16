@@ -243,7 +243,7 @@ var Mime mimet
 func (mimet) DetectFile(filepath string, file File) string {
 	ext := strings.ToLower(path.Ext(file.Name()))
 	switch ext {
-	case ".js":
+	case ".js", ".mjs", ".cjs":
 		return "text/javascript"
 	case ".json":
 		return "application/json"
