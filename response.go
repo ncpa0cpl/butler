@@ -68,6 +68,11 @@ func (resp *Response) Etag(etag string) *Response {
 	return resp
 }
 
+// Returns whatever value was set via the Etag() method, empty string if Etag was never set
+func (resp *Response) GetEtag() string {
+	return resp.etag
+}
+
 // this policy setting takes priority over the one defined in the Endpoint
 func (resp *Response) SetCachePolicy(policy *HttpCachePolicy) *Response {
 	resp.CachePolicy = policy
