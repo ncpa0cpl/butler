@@ -78,6 +78,10 @@ func (r *Request) FormValue(name string) string {
 	return r.ctx.FormValue(name)
 }
 
+func (r *Request) FS() FilesystemLayer {
+	return r.server.filesystem
+}
+
 func (r *Request) FormParams() (url.Values, error) {
 	return r.ctx.FormValues()
 }
