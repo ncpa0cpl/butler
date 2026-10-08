@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -50,6 +51,30 @@ func (resp *Response) streamFromReader(ctx *echo.Context, request *Request) erro
 	return streamReader(ctx, request, resp, resp.streamReader)
 }
 
+// RFC 7233 §3.2: If-Range carries either a strong etag or the exact Last-Modified date
+// of the resource the client already holds; an unmatchable value means the client's copy
+// is stale and the whole resource must be sent instead of the requested range
+func evalIfRange(ifRange, etag, lastModified string) bool {
+	if ifRange == "" {
+		return true
+	}
+
+	if strings.HasPrefix(ifRange, "W/") {
+		return false
+	}
+
+	if strings.HasPrefix(ifRange, `"`) {
+		return etag != "" && strings.Trim(ifRange, `"`) == strings.Trim(etag, `"`)
+	}
+
+	if date, err := http.ParseTime(ifRange); err == nil {
+		modTime, err := http.ParseTime(lastModified)
+		return err == nil && date.Equal(modTime)
+	}
+
+	return etag != "" && strings.Trim(ifRange, `"`) == strings.Trim(etag, `"`)
+}
+
 func streamReader(ctx *echo.Context, request *Request, resp *Response, reader ButlerReader) error {
 	defer reader.Close()
 	respH := ctx.Response().Header()
@@ -61,6 +86,14 @@ func streamReader(ctx *echo.Context, request *Request, resp *Response, reader Bu
 		resp.Status = 400
 		ctx.NoContent(400)
 		return err
+	}
+
+	if requestedRange != nil {
+		if ifRange := request.Headers.Get("If-Range"); ifRange != "" {
+			if !evalIfRange(ifRange, resp.bodyResolver.ETag(), respH.Get("Last-Modified")) {
+				requestedRange = nil
+			}
+		}
 	}
 
 	settings := resp.StreamingSettings

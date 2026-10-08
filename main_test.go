@@ -2241,6 +2241,87 @@ func TestFsEndpointWithVirtFs(t *testing.T) {
 	assert.Equal("5242944", resp.Header.Get("content-length"))
 }
 
+func TestFsEndpointIfRange(t *testing.T) {
+	assert := assert.New(t)
+
+	server := f.CreateServer()
+	server.Port = 8080
+
+	content := addVidPrefix(fill(make([]byte, 5*f.Units.MB), 1))
+
+	server.SetFs(
+		&VirtualFs{
+			files: []VirtualFile{
+				{
+					path:    "/static_test/big_vid.mp4",
+					content: content,
+					modtime: must(time.Parse(time.DateOnly, "2025-01-01")),
+				},
+			},
+		},
+	)
+
+	stream := &f.FsEndpoint{
+		Path: "/static",
+		Dir:  "/static_test",
+		// fs endpoints default to a no-store policy, which suppresses etag headers
+		CachePolicy: &f.HttpCachePolicy{
+			MaxAge: time.Hour,
+		},
+	}
+
+	server.Add(stream)
+
+	go server.Listen()
+	defer server.Close()
+
+	_, resp := request("GET", "http://localhost:8080/static/big_vid.mp4", nil)
+	assert.Equal(200, resp.StatusCode)
+	etag := resp.Header.Get("ETag")
+	assert.Equal("2025-01-01", etag)
+	lastModified := resp.Header.Get("Last-Modified")
+	assert.NotEqual("", lastModified)
+
+	ifRange := func(value string) ([]byte, *http.Response) {
+		return request("GET", "http://localhost:8080/static/big_vid.mp4", nil,
+			header{"Range", "bytes=100-199"},
+			header{"If-Range", value},
+		)
+	}
+
+	// etag match
+	body, resp := ifRange(etag)
+	assert.Equal(206, resp.StatusCode)
+	assert.Equal("bytes 100-199/5242944", resp.Header.Get("Content-Range"))
+	assert.Equal("100", resp.Header.Get("Content-Length"))
+	assert.Equal([]byte(content[100:200]), body)
+
+	// quoted etag match
+	body, resp = ifRange(`"` + etag + `"`)
+	assert.Equal(206, resp.StatusCode)
+	assert.Equal([]byte(content[100:200]), body)
+
+	// last-modified date match
+	body, resp = ifRange(lastModified)
+	assert.Equal(206, resp.StatusCode)
+	assert.Equal([]byte(content[100:200]), body)
+
+	// mismatching etag - the client might hold a different version
+	body, resp = ifRange("2024-01-01")
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal(content, body)
+
+	// weak etags cannot be used in If-Range
+	body, resp = ifRange(`W/"` + etag + `"`)
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal(content, body)
+
+	// not a valid validator
+	body, resp = ifRange("junk")
+	assert.Equal(200, resp.StatusCode)
+	assert.Equal(content, body)
+}
+
 type Film struct {
 	Title        string    `json:"title"`
 	EpisodeID    int       `json:"episode_id"`
