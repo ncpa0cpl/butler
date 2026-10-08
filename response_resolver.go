@@ -102,7 +102,7 @@ func (r *RespFileResolver) Init(req *Request, resp *Response) {
 }
 
 func (r *RespFileResolver) ETag() string {
-	if r.error != nil || r.stream {
+	if r.error != nil {
 		return ""
 	}
 
@@ -221,7 +221,7 @@ func (r *RespFileHandlerResolver) Init(req *Request, resp *Response) {
 }
 
 func (r *RespFileHandlerResolver) ETag() string {
-	if r.error != nil || r.stream {
+	if r.error != nil {
 		return ""
 	}
 
@@ -334,7 +334,7 @@ func (r *RespFileLoaderResolver) Init(req *Request, resp *Response) {
 }
 
 func (r *RespFileLoaderResolver) ETag() string {
-	if r.error != nil || r.stream {
+	if r.error != nil {
 		return ""
 	}
 

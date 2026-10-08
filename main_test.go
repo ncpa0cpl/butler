@@ -660,6 +660,24 @@ func TestFsEndpointHeadersWithEncoding(t *testing.T) {
 	samplesmallVidFile := addVidPrefix(fill(make([]byte, f.Units.MB/4), 1))
 	sampleBigVidFile := addVidPrefix(fill(make([]byte, 5*f.Units.MB), 1))
 
+	// exact gzip sizes vary between Go toolchains
+	gzipLen := func(data []byte) int {
+		var buf bytes.Buffer
+		writer := gzip.NewWriter(&buf)
+		_, err := writer.Write(data)
+		noErr(err)
+		noErr(writer.Close())
+		return buf.Len()
+	}
+	expectedGzipLen := map[string]int{
+		"script.js":     gzipLen(sampleJsFile),
+		"styles.css":    gzipLen(sampleCssFile),
+		"index.html":    gzipLen(sampleHtmlFile),
+		"data.json":     gzipLen(sampleJsonFile),
+		"small_vid.mp4": len(samplesmallVidFile),
+		"big_vid.mp4":   len(sampleBigVidFile),
+	}
+
 	err = os.WriteFile("./static_test/script.js", sampleJsFile, 0644)
 	noErr(err)
 	err = os.WriteFile("./static_test/styles.css", sampleCssFile, 0644)
@@ -697,28 +715,28 @@ func TestFsEndpointHeadersWithEncoding(t *testing.T) {
 	assert.Equal(200, resp.StatusCode)
 	assert.Len(body, 0)
 	assert.Equal("gzip", resp.Header.Get("content-encoding"))
-	assert.Equal("898", resp.Header.Get("content-length"))
+	assert.Equal(strconv.Itoa(expectedGzipLen["script.js"]), resp.Header.Get("content-length"))
 	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
 
 	body, resp = request("HEAD", "http://localhost:8080/static/styles.css", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Len(body, 0)
 	assert.Equal("gzip", resp.Header.Get("content-encoding"))
-	assert.Equal("437", resp.Header.Get("content-length"))
+	assert.Equal(strconv.Itoa(expectedGzipLen["styles.css"]), resp.Header.Get("content-length"))
 	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
 
 	body, resp = request("HEAD", "http://localhost:8080/static/index.html", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Len(body, 0)
 	assert.Equal("gzip", resp.Header.Get("content-encoding"))
-	assert.Equal("549", resp.Header.Get("content-length"))
+	assert.Equal(strconv.Itoa(expectedGzipLen["index.html"]), resp.Header.Get("content-length"))
 	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
 
 	body, resp = request("HEAD", "http://localhost:8080/static/data.json", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Len(body, 0)
 	assert.Equal("gzip", resp.Header.Get("content-encoding"))
-	assert.Equal("146", resp.Header.Get("content-length"))
+	assert.Equal(strconv.Itoa(expectedGzipLen["data.json"]), resp.Header.Get("content-length"))
 	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
 
 	// mp4 is non-encodable
@@ -726,7 +744,7 @@ func TestFsEndpointHeadersWithEncoding(t *testing.T) {
 	assert.Equal(200, resp.StatusCode)
 	assert.Len(body, 0)
 	assert.Equal("", resp.Header.Get("content-encoding"))
-	assert.Equal("262208", resp.Header.Get("content-length"))
+	assert.Equal(strconv.Itoa(expectedGzipLen["small_vid.mp4"]), resp.Header.Get("content-length"))
 	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
 
 	// mp4 is non-encodable
@@ -734,46 +752,46 @@ func TestFsEndpointHeadersWithEncoding(t *testing.T) {
 	assert.Equal(200, resp.StatusCode)
 	assert.Len(body, 0)
 	assert.Equal("", resp.Header.Get("content-encoding"))
-	assert.Equal("5242944", resp.Header.Get("content-length"))
+	assert.Equal(strconv.Itoa(expectedGzipLen["big_vid.mp4"]), resp.Header.Get("content-length"))
 	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
 
 	// GET requests
 	_, resp = request("GET", "http://localhost:8080/static/script.js", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal("gzip", resp.Header.Get("content-encoding"))
-	assert.Equal(int64(898), resp.ContentLength) // should be the same as the len of HEAD requests above
+	assert.Equal(int64(expectedGzipLen["script.js"]), resp.ContentLength) // should be the same as the len of HEAD requests above
 	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
 
 	_, resp = request("GET", "http://localhost:8080/static/styles.css", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal("gzip", resp.Header.Get("content-encoding"))
-	assert.Equal(int64(437), resp.ContentLength) // should be the same as the len of HEAD requests above
+	assert.Equal(int64(expectedGzipLen["styles.css"]), resp.ContentLength) // should be the same as the len of HEAD requests above
 	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
 
 	_, resp = request("GET", "http://localhost:8080/static/index.html", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal("gzip", resp.Header.Get("content-encoding"))
-	assert.Equal(int64(549), resp.ContentLength) // should be the same as the len of HEAD requests above
+	assert.Equal(int64(expectedGzipLen["index.html"]), resp.ContentLength) // should be the same as the len of HEAD requests above
 	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
 
 	_, resp = request("GET", "http://localhost:8080/static/data.json", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal("gzip", resp.Header.Get("content-encoding"))
-	assert.Equal(int64(146), resp.ContentLength) // should be the same as the len of HEAD requests above
+	assert.Equal(int64(expectedGzipLen["data.json"]), resp.ContentLength) // should be the same as the len of HEAD requests above
 	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
 
 	// mp4 is non-encodable
 	_, resp = request("GET", "http://localhost:8080/static/small_vid.mp4", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal("", resp.Header.Get("content-encoding"))
-	assert.Equal(int64(262208), resp.ContentLength) // should be the same as the len of HEAD requests above
+	assert.Equal(int64(expectedGzipLen["small_vid.mp4"]), resp.ContentLength) // should be the same as the len of HEAD requests above
 	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
 
 	// mp4 is non-encodable
 	_, resp = request("GET", "http://localhost:8080/static/big_vid.mp4", nil, header{"accept-encoding", "gzip"})
 	assert.Equal(200, resp.StatusCode)
 	assert.Equal("", resp.Header.Get("content-encoding"))
-	assert.Equal(int64(5242944), resp.ContentLength) // should be the same as the len of HEAD requests above
+	assert.Equal(int64(expectedGzipLen["big_vid.mp4"]), resp.ContentLength) // should be the same as the len of HEAD requests above
 	assert.True(httpDateRegx.MatchString(resp.Header.Get("last-modified")))
 }
 
@@ -2164,6 +2182,10 @@ func TestFsEndpointWithVirtFs(t *testing.T) {
 	stream := &f.FsEndpoint{
 		Path: "/static",
 		Dir:  "/static_test",
+		// fs endpoints default to a no-store policy, which suppresses etag headers
+		CachePolicy: &f.HttpCachePolicy{
+			MaxAge: time.Hour,
+		},
 	}
 
 	server.Add(stream)
