@@ -12,6 +12,16 @@ type Endpoint[T any, B any] struct {
 	//
 	// Default: `auto`
 	Encoding string
+	// When true, every filed on the Body type will be required. If the incoming
+	// request is missing any of the fields a Bad Request will be automatically sent back.
+	//
+	// Individual fields can also be marked as required with the `required`
+	// struct tag, independently of this setting, e.g.:
+	//
+	//   type Body struct {
+	//     Name string `required:"true"`
+	//   }
+	RequireAllBodyField bool
 	// CachePolicy is used to determine the value of the Cache-Control header and the server behavior
 	// when receiving a request with a If-None-Match header.
 	CachePolicy       *HttpCachePolicy
@@ -164,7 +174,7 @@ func (e *Endpoint[T, B]) Register(parent EndpointParent) {
 
 func (e *Endpoint[T, B]) parseBody(ctx *echo.Context) (*B, error) {
 	var body B
-	err := ctx.Bind(&body)
+	err := bindBody(ctx, &body, bodyBindOptions{requireAllFields: e.RequireAllBodyField})
 	return &body, err
 }
 
