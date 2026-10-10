@@ -121,7 +121,7 @@ func (e *WebSocketEndpoint) ExecuteHandler(ctx *echo.Context, request *Request) 
 
 	request.Logger.Debug("WebSocket interface created")
 
-	websocket.Start(e.OnOpen)
+	websocket.start(e.OnOpen)
 
 	return nil
 }

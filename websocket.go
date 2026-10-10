@@ -20,13 +20,15 @@ type sendMessage struct {
 }
 
 type Websocket struct {
-	conn           *websocket.Conn
-	open           bool
-	openMx         sync.RWMutex
-	sendChannel    chan sendMessage
-	readingStarted bool
-	logger         RequestLogger
-	request        *Request
+	conn         *websocket.Conn
+	open         bool
+	openMx       sync.RWMutex
+	sendChannel  chan sendMessage
+	done         chan bool
+	readingStart sync.Once
+	shutdownOnce sync.Once
+	logger       RequestLogger
+	request      *Request
 
 	msgReceivers   eventEmitter[WebsocketMessage]
 	closeReceivers eventEmitter[CloseMessage]
@@ -37,13 +39,13 @@ func newWebsocket(request *Request, conn *websocket.Conn, pingInterval, pongTime
 	conn.SetPongHandler(func(string) error { conn.SetReadDeadline(time.Now().Add(pongTimeout)); return nil })
 
 	ws := Websocket{
-		conn:           conn,
-		open:           true,
-		openMx:         sync.RWMutex{},
-		sendChannel:    make(chan sendMessage, 16),
-		logger:         request.Logger,
-		readingStarted: false,
-		request:        request,
+		conn:        conn,
+		open:        true,
+		openMx:      sync.RWMutex{},
+		sendChannel: make(chan sendMessage, 16),
+		done:        make(chan bool),
+		logger:      request.Logger,
+		request:     request,
 		msgReceivers: eventEmitter[WebsocketMessage]{
 			mx:        sync.Mutex{},
 			listeners: make([]listener[WebsocketMessage], 0),
@@ -74,26 +76,14 @@ func newWebsocket(request *Request, conn *websocket.Conn, pingInterval, pongTime
 
 		ticker := time.NewTicker(pingInterval)
 		defer func() {
-			close(ws.sendChannel)
 			ticker.Stop()
-			ws.conn.Close()
-			ws.closeReceivers.EmitAndClose(CloseMessage{
-				CloseErr: err,
-			})
+			ws.shutdown(err)
 		}()
 
 		for {
 			select {
-			case msg, ok := <-ws.sendChannel:
+			case msg := <-ws.sendChannel:
 				conn.SetWriteDeadline(time.Now().Add(writeTimeout))
-				if !ok {
-					// The hub closed the channel.
-					err = conn.WriteMessage(websocket.CloseMessage, []byte{})
-					if err != nil {
-						request.Logger.Error(err)
-					}
-					return
-				}
 
 				var w io.WriteCloser
 				w, err = conn.NextWriter(msg.mtype)
@@ -114,6 +104,8 @@ func newWebsocket(request *Request, conn *websocket.Conn, pingInterval, pongTime
 					request.Logger.Error(err)
 					return
 				}
+			case <-ws.done:
+				return
 			}
 		}
 	}()
@@ -122,30 +114,27 @@ func newWebsocket(request *Request, conn *websocket.Conn, pingInterval, pongTime
 }
 
 func (ws *Websocket) startReading() {
-	if ws.readingStarted {
-		return
-	}
-
-	ws.readingStarted = true
-
-	go func() {
-		for {
-			t, content, err := ws.conn.ReadMessage()
-			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					ws.logger.Error(err)
+	ws.readingStart.Do(func() {
+		go func() {
+			for {
+				t, content, err := ws.conn.ReadMessage()
+				if err != nil {
+					if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+						ws.logger.Error(err)
+					}
+					ws.shutdown(err)
+					return
 				}
-				return
+				ws.msgReceivers.Emit(WebsocketMessage{
+					IsText: t == websocket.TextMessage,
+					Data:   content,
+				})
 			}
-			ws.msgReceivers.Emit(WebsocketMessage{
-				IsText: t == websocket.TextMessage,
-				Data:   content,
-			})
-		}
-	}()
+		}()
+	})
 }
 
-func (ws *Websocket) Start(onOpen func(ws *Websocket) error) {
+func (ws *Websocket) start(onOpen func(ws *Websocket) error) {
 	err := onOpen(ws)
 	if err != nil {
 		ws.logger.Error("the WebSocket open handler returned an error:", err)
@@ -180,6 +169,16 @@ func (ws *Websocket) IsOpen() bool {
 }
 
 // optionally pass a one close code. default is `websocket.CloseNormalClosure`
+func (ws *Websocket) shutdown(err error) {
+	ws.shutdownOnce.Do(func() {
+		close(ws.done)
+	})
+	ws.conn.Close()
+	ws.closeReceivers.EmitAndClose(CloseMessage{
+		CloseErr: err,
+	})
+}
+
 func (ws *Websocket) Close(closecode ...int) error {
 	code := websocket.CloseNormalClosure
 
@@ -194,9 +193,7 @@ func (ws *Websocket) Close(closecode ...int) error {
 	)
 
 	err := ws.conn.Close()
-	ws.closeReceivers.EmitAndClose(CloseMessage{
-		err,
-	})
+	ws.shutdown(err)
 	return err
 }
 
@@ -231,10 +228,10 @@ func (ws *Websocket) ReadNext() *WebsocketMessage {
 	closeChan := make(chan CloseMessage, 1)
 
 	defer func() {
-		close(msgChan)
-		close(closeChan)
 		removeCloseListener()
 		removeMsgListener()
+		close(msgChan)
+		close(closeChan)
 	}()
 
 	removeMsgListener = ws.OnMessage(func(msg WebsocketMessage) {
@@ -253,12 +250,23 @@ func (ws *Websocket) ReadNext() *WebsocketMessage {
 	}
 }
 
-func (ws *Websocket) SendBinary(content []byte) {
-	ws.sendChannel <- sendMessage{content, websocket.BinaryMessage}
+func (ws *Websocket) SendBinary(content []byte) bool {
+	select {
+	case ws.sendChannel <- sendMessage{content, websocket.BinaryMessage}:
+		return true
+	case <-ws.done:
+		return false
+	}
 }
 
-func (ws *Websocket) SendText(content string) {
-	ws.sendChannel <- sendMessage{[]byte(content), websocket.TextMessage}
+func (ws *Websocket) SendText(content string) bool {
+	select {
+	case ws.sendChannel <- sendMessage{[]byte(content), websocket.TextMessage}:
+		return true
+	case <-ws.done:
+		return false
+	}
+
 }
 
 func (ws *Websocket) Logger() RequestLogger {
